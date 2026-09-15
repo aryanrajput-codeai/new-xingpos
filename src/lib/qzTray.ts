@@ -51,7 +51,9 @@ export class QZTrayService {
     const raw = err?.message || String(err || "");
 
     if (raw.includes("Failed to sign request") || raw.includes("QZ signing request failed") || raw.includes("signature")) {
-      return "QZ signing request failed: The print request could not be cryptographically signed by the server. Please verify the QZ security signature service.";
+      const httpDetail = raw.match(/HTTP \d+/)?.[0] || "";
+      const extra = httpDetail ? ` (${httpDetail})` : "";
+      return `QZ signing request failed${extra}: The print request could not be cryptographically signed by the server. Please verify the QZ security signature service.`;
     }
 
     if (raw.includes("certificate") || raw.includes("Certificate")) {
@@ -605,14 +607,19 @@ export class QZTrayService {
     const resolvedPrinter = await this.getSelectedPrinter(printerName);
 
     try {
-      console.log(`[QZTray] Dispatching raw ESC/POS job to "${resolvedPrinter}" (copies=${copies})...`);
-
       const config = qz.configs.create(resolvedPrinter, {
         copies: Math.max(1, copies),
         unsaved: true,
       });
 
-      await qz.print(config, [
+      // Safe console diagnostics for hardware verification
+      console.log(`[QZTray Diagnostics] Selected Printer: "${resolvedPrinter}"`);
+      console.log(`[QZTray Diagnostics] Config:`, { printer: resolvedPrinter, copies: Math.max(1, copies), unsaved: true });
+      console.log(`[QZTray Diagnostics] Data Type: raw (command / hex)`);
+      console.log(`[QZTray Diagnostics] Data Length: ${hexString.length} chars (${Math.round(hexString.length / 2)} bytes)`);
+      console.log(`[QZTray Diagnostics] qz.print started at ${new Date().toISOString()}`);
+
+      const printPromise = qz.print(config, [
         {
           type: "raw",
           format: "command",
@@ -622,11 +629,26 @@ export class QZTrayService {
         },
       ]);
 
-      console.log(`[QZTray] Print successfully completed on "${resolvedPrinter}"`);
+      // 25-second timeout guard to prevent UI from remaining permanently stuck at "Printing dispatch..."
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(
+          () =>
+            reject(
+              new Error(
+                `Print dispatch timed out after 25 seconds waiting for QZ Tray / Epson "${resolvedPrinter}". Please verify printer power and USB connection.`
+              )
+            ),
+          25000
+        )
+      );
+
+      await Promise.race([printPromise, timeoutPromise]);
+
+      console.log(`[QZTray Diagnostics] qz.print resolved successfully on "${resolvedPrinter}"`);
       return { success: true, printerUsed: resolvedPrinter };
     } catch (err: any) {
       const errMsg = err?.message || String(err);
-      console.error(`[QZTray] Print dispatch failed on "${resolvedPrinter}":`, errMsg);
+      console.error(`[QZTray Diagnostics] qz.print rejected on "${resolvedPrinter}":`, errMsg);
 
       if (
         errMsg.includes("sendData is not a function") ||
