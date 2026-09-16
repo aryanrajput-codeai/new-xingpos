@@ -1610,33 +1610,8 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
           </div>
         </div>
 
-        {/* Diagnostic controls, staff profile and countdown */}
+        {/* Diagnostic controls and sound settings */}
         <div className="flex items-center gap-2 md:gap-3 text-xs font-mono">
-          {/* Active Staff Operator Badge */}
-          <button
-            onClick={() => setShowStaffSwitchModal(true)}
-            className="flex items-center gap-2 px-2.5 py-1.5 bg-stone-50 hover:bg-amber-50/70 border border-stone-200 hover:border-amber-300 rounded-xl transition-all cursor-pointer text-left group"
-            title="Click to Switch Staff Operator or Lock Terminal"
-          >
-            <div className="w-6 h-6 rounded-lg bg-amber-100 text-[#aa7c11] flex items-center justify-center font-bold text-[10px] shrink-0 overflow-hidden border border-amber-200">
-              {activeStaff.avatar ? (
-                <img src={activeStaff.avatar} alt={activeStaff.name} className="w-full h-full object-cover" />
-              ) : (
-                activeStaff.name.slice(0, 2).toUpperCase()
-              )}
-            </div>
-            <div className="hidden sm:block">
-              <div className="text-[11px] font-bold text-stone-900 group-hover:text-[#aa7c11] leading-tight">
-                {activeStaff.name}
-              </div>
-              <div className="text-[9px] text-stone-500 font-mono flex items-center gap-1">
-                <span className="font-semibold text-[#aa7c11]">{activeStaff.role}</span>
-                <span>• PIN: {activeStaff.pin}</span>
-              </div>
-            </div>
-            <ArrowRightLeft className="w-3 h-3 text-stone-400 group-hover:text-[#aa7c11] shrink-0 ml-0.5" />
-          </button>
-
           {/* Sound settings */}
           <button
             onClick={() => setSoundEnabled(!soundEnabled)}
@@ -1673,10 +1648,6 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
             <SidebarBtn icon={<ShoppingCart />} label="Order Management" active={activeTab === "orders"} count={orders.filter(o => o.orderStatus === "New Order").length} onClick={() => handleTabSelect("orders")} />
             <SidebarBtn icon={<History />} label="Order History" active={activeTab === "history"} onClick={() => handleTabSelect("history")} />
             <SidebarBtn icon={<Utensils />} label="Menu Catalog" active={activeTab === "menu"} onClick={() => handleTabSelect("menu")} />
-            <SidebarBtn icon={<Scale />} label="Raw Inventory" active={activeTab === "inventory" || activeTab === "wastage" || activeTab === "adjustments"} onClick={() => handleTabSelect("inventory")} />
-            <SidebarBtn icon={<PieChart />} label="Inventory Reports" active={activeTab === "inventory-reports"} onClick={() => handleTabSelect("inventory-reports")} />
-            <SidebarBtn icon={<BookOpen />} label="Recipe Book" active={activeTab === "recipes"} onClick={() => handleTabSelect("recipes")} />
-            <SidebarBtn icon={<Truck />} label="Purchases & Vendors" active={activeTab === "purchases" || activeTab === "suppliers"} onClick={() => handleTabSelect("purchases")} />
             <SidebarBtn icon={<Users />} label="Customer Directory" active={activeTab === "customers"} onClick={() => handleTabSelect("customers")} />
             <SidebarBtn icon={<Ticket />} label="Promo Coupons" active={activeTab === "coupons"} onClick={() => handleTabSelect("coupons")} />
             <SidebarBtn icon={<QrCode />} label="Table QR Codes" active={activeTab === "tables"} onClick={() => handleTabSelect("tables")} />
@@ -1772,10 +1743,6 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
                   <MobileGridBtn id="orders" label="Orders Queue" active={activeTab === "orders"} icon={<ShoppingCart />} count={orders.filter(o => o.orderStatus === "New Order").length} onClick={() => { handleTabSelect("orders"); setIsMobileMenuOpen(false); }} />
                   <MobileGridBtn id="history" label="History" active={activeTab === "history"} icon={<History />} onClick={() => { handleTabSelect("history"); setIsMobileMenuOpen(false); }} />
                   <MobileGridBtn id="menu" label="Menu Catalog" active={activeTab === "menu"} icon={<Utensils />} onClick={() => { handleTabSelect("menu"); setIsMobileMenuOpen(false); }} />
-                  <MobileGridBtn id="inventory" label="Raw Inventory" active={activeTab === "inventory" || activeTab === "wastage" || activeTab === "adjustments"} icon={<Scale />} onClick={() => { handleTabSelect("inventory"); setIsMobileMenuOpen(false); }} />
-                  <MobileGridBtn id="inventory-reports" label="Stock Reports" active={activeTab === "inventory-reports"} icon={<PieChart />} onClick={() => { handleTabSelect("inventory-reports"); setIsMobileMenuOpen(false); }} />
-                  <MobileGridBtn id="recipes" label="Recipe Book" active={activeTab === "recipes"} icon={<BookOpen />} onClick={() => { handleTabSelect("recipes"); setIsMobileMenuOpen(false); }} />
-                  <MobileGridBtn id="purchases" label="Procurement" active={activeTab === "purchases" || activeTab === "suppliers"} icon={<Truck />} onClick={() => { handleTabSelect("purchases"); setIsMobileMenuOpen(false); }} />
                   <MobileGridBtn id="customers" label="Guests" active={activeTab === "customers"} icon={<Users />} onClick={() => { handleTabSelect("customers"); setIsMobileMenuOpen(false); }} />
                   <MobileGridBtn id="coupons" label="Promo Cards" active={activeTab === "coupons"} icon={<Ticket />} onClick={() => { handleTabSelect("coupons"); setIsMobileMenuOpen(false); }} />
                   <MobileGridBtn id="logs" label="Audit Logs" active={activeTab === "logs"} icon={<ShieldCheck />} onClick={() => { handleTabSelect("logs"); setIsMobileMenuOpen(false); }} />

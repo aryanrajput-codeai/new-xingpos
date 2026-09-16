@@ -831,35 +831,6 @@ export default function PosBillingPortal({
             </span>
           </div>
 
-          {/* Active Operator & Quick Switch Badge */}
-          <div 
-            onClick={() => setShowStaffSwitchModal(true)}
-            className="bg-amber-50/80 hover:bg-amber-100/90 border border-amber-200/80 px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-lg sm:rounded-xl flex items-center gap-2 cursor-pointer transition-all shadow-2xs group"
-            title="Click to Switch Active Staff Operator or Lock Terminal"
-          >
-            <div className="w-5 h-5 rounded-full bg-linear-to-br from-[#d4af37] to-[#aa7c11] text-white flex items-center justify-center font-bold text-[9px] shadow-2xs">
-              {activeStaff.name.charAt(0)}
-            </div>
-            <div className="flex flex-col text-left">
-              <div className="flex items-center gap-1">
-                <span className="font-bold text-[10px] sm:text-[11px] text-stone-900 leading-tight group-hover:text-[#aa7c11] transition-colors">
-                  {activeStaff.name}
-                </span>
-                <span className={`text-[8px] font-black uppercase px-1.5 py-0.2 rounded-full leading-tight font-mono ${
-                  activeStaff.role === "Owner" ? "bg-purple-100 text-purple-800" :
-                  activeStaff.role === "Manager" ? "bg-amber-100 text-amber-900" :
-                  activeStaff.role === "Cashier" ? "bg-blue-100 text-blue-800" :
-                  "bg-stone-200 text-stone-700"
-                }`}>
-                  {activeStaff.role}
-                </span>
-              </div>
-              <span className="text-[8px] text-stone-400 font-mono flex items-center gap-0.5">
-                <KeyRound className="w-2.5 h-2.5 text-stone-400" /> Switch / Lock
-              </span>
-            </div>
-          </div>
-
           {/* Transfer Table Quick Action (Only for Dine-In) */}
           {orderType === "dine-in" && (
             <button
@@ -920,41 +891,6 @@ export default function PosBillingPortal({
           >
             <Receipt className="w-3.5 h-3.5 text-[#9a7b20]" />
             <span>Split Bill</span>
-          </button>
-
-          {/* Shift Management Status & Action Button */}
-          {activeShift ? (
-            <button
-              type="button"
-              onClick={() => setShowShiftModal(true)}
-              className="bg-emerald-50 hover:bg-emerald-100 text-emerald-900 border border-emerald-300 px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-lg sm:rounded-xl flex items-center gap-1.5 font-mono text-[9px] sm:text-[10px] font-bold uppercase transition-all cursor-pointer shadow-xs"
-              title={`Active Shift #${activeShift.id} - Cashier: ${activeShift.cashierName}`}
-            >
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-              <Landmark className="w-3.5 h-3.5 text-emerald-700" />
-              <span>Shift #{activeShift.id} (₹{shiftFinancials ? shiftFinancials.expectedCash.toFixed(0) : activeShift.openingCash})</span>
-            </button>
-          ) : (
-            <button
-              type="button"
-              onClick={() => setShowShiftModal(true)}
-              className="bg-amber-500 hover:bg-amber-600 text-white border border-amber-600 px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-lg sm:rounded-xl flex items-center gap-1.5 font-mono text-[9px] sm:text-[10px] font-bold uppercase transition-all cursor-pointer shadow-sm animate-bounce"
-              title="No active cashier shift open. Click to open shift & set cash float."
-            >
-              <Landmark className="w-3.5 h-3.5" />
-              <span>Start Shift</span>
-            </button>
-          )}
-
-          {/* Shift History & Z-Reports Button */}
-          <button
-            type="button"
-            onClick={() => setShowShiftHistoryModal(true)}
-            className="bg-stone-100 hover:bg-stone-200 text-stone-700 border border-stone-300 px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-lg sm:rounded-xl flex items-center gap-1.5 font-mono text-[9px] sm:text-[10px] font-bold uppercase transition-all cursor-pointer shadow-xs"
-            title="View Shift Archives, Z-Reports & Cash Reconciliations"
-          >
-            <Clock className="w-3.5 h-3.5 text-stone-600" />
-            <span className="hidden sm:inline">Shift</span> <span>History</span>
           </button>
         </div>
       </div>
