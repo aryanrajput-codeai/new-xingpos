@@ -1,9 +1,9 @@
 {
   "name": "xings-kitchen-pos",
   "private": true,
-  "version": "1.0.0",
+  "version": "1.1.0",
   "type": "module",
-  "main": "electron/main.js",
+  "main": "electron/main.cjs",
   "scripts": {
     "dev": "tsx server.ts",
     "build": "vite build && esbuild server.ts --bundle --platform=node --format=cjs --packages=external --sourcemap --outfile=dist/server.cjs",
@@ -15,33 +15,76 @@
     "test:purchases": "tsx scripts/test-purchase-management.ts",
     "lint": "tsc --noEmit",
     "electron:dev": "concurrently \"npm run dev\" \"wait-on http://localhost:3000 && electron .\"",
-    "electron:build": "npm run build && electron-builder --win --x64"
+    "electron:build": "npm run build && electron-builder --win --x64 -c.directories.output=releases/desktop-app/windows",
+    "electron:build:mac": "npm run build && electron-builder --mac dmg zip dir -c.directories.output=releases/desktop-app/mac"
   },
   "build": {
     "appId": "com.webrajya.xingskitchen.desktop",
     "productName": "XINGS KITCHEN",
     "copyright": "Copyright © 2026 Webrajya",
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "aryanrajput-codeai",
+        "repo": "new-xingpos"
+      }
+    ],
     "directories": {
       "output": "releases/desktop-app"
     },
     "files": [
       "dist/**/*",
       "electron/**/*",
+      "mac-print-bridge/**/*",
       "package.json"
     ],
     "win": {
-      "target": "nsis",
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
       "executableName": "XINGS-KITCHEN",
-      "artifactName": "XINGS-KITCHEN-Desktop-Setup.exe",
       "signAndEditExecutable": false
     },
     "nsis": {
-      "oneClick": false,
+      "oneClick": true,
       "perMachine": false,
-      "allowToChangeInstallationDirectory": true,
+      "allowToChangeInstallationDirectory": false,
       "createDesktopShortcut": true,
       "runAfterFinish": true,
-      "shortcutName": "XINGS KITCHEN"
+      "shortcutName": "XINGS KITCHEN",
+      "artifactName": "XINGS-KITCHEN-Desktop-Setup.exe"
+    },
+    "portable": {
+      "artifactName": "XINGS-KITCHEN-Desktop-Portable.exe"
+    },
+    "mac": {
+      "category": "public.app-category.business",
+      "target": [
+        "dmg",
+        "zip",
+        "dir"
+      ],
+      "identity": null
+    },
+    "dmg": {
+      "artifactName": "XINGS-KITCHEN-Desktop-Setup.dmg"
     }
   },
   "dependencies": {
@@ -50,6 +93,7 @@
     "@tailwindcss/vite": "^4.1.14",
     "@vitejs/plugin-react": "^5.0.4",
     "dotenv": "^17.2.3",
+    "electron-updater": "^6.8.9",
     "express": "^4.21.2",
     "jspdf": "^4.2.1",
     "lucide-react": "^0.546.0",

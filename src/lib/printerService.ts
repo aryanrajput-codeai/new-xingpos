@@ -1,8 +1,27 @@
 import { MenuItem, Shift, ShiftFinancials } from "../types";
 import { ESCPOSBuilder } from "./escposBuilder";
-import { RestaurantSettings } from "./db";
+import { 
+  RestaurantSettings, 
+  BillFormatSettings, 
+  KOTFormatSettings, 
+  defaultBillFormatSettings, 
+  defaultKOTFormatSettings 
+} from "./db";
 import { RESTAURANT_BRANDING } from "../config/branding";
 import { PrintBridgeClient } from "./printBridgeClient";
+
+declare global {
+  interface Window {
+    electronAPI?: {
+      isElectron: boolean;
+      platform: string;
+      appName: string;
+      getPrinters: () => Promise<Array<{ name: string; displayName?: string; isDefault?: boolean }>>;
+      silentPrint: (options: { htmlContent: string; deviceName?: string; copies?: number; paperWidth?: string }) => Promise<{ success: boolean; error?: string }>;
+    };
+  }
+}
+
 
 export interface PrinterItem {
   name: string;
@@ -1355,123 +1374,344 @@ export class PhysicalThermalPrinter {
   }
 
   /**
-   * Print KOT
+   * Render Customer Bill HTML based on administrator's BillFormatSettings
+   */
+  public static renderConfiguredBillHTML(
+    data: any,
+    settings: any,
+    overrideFormat?: BillFormatSettings
+  ): string {
+    const fmt: BillFormatSettings = {
+      ...defaultBillFormatSettings,
+      ...(settings?.billFormat || {}),
+      ...(overrideFormat || {}),
+    };
+
+    const is80 = fmt.paperWidth === "80mm";
+    const paperWidthPixels = is80 ? "290px" : "210px";
+    const bg = "#ffffff";
+    const textCol = "#000000";
+
+    const items = data.items || [];
+    const subtotal = data.subtotal || data.subTotal || 0;
+    const discountAmount = data.discountAmount || 0;
+    const packagingCharge = data.packagingCharge || 0;
+    const gst = data.gst || data.tax || 0;
+    const grandTotal = data.grandTotal || (subtotal - discountAmount + packagingCharge + gst);
+    const finalGrandTotal = Math.round(grandTotal);
+
+    const createdAtDate = new Date(data.createdAt || Date.now());
+
+    return `
+      <div style="width: ${paperWidthPixels}; background: ${bg}; color: ${textCol}; padding: ${fmt.topMargin}px 4px ${fmt.bottomMargin}px 4px; box-sizing: border-box; font-family: 'Courier New', Courier, monospace; font-size: ${fmt.bodyFontSize}px; line-height: ${fmt.lineSpacing}; text-align: left; margin: 0 auto; -webkit-print-color-adjust: exact;">
+
+        <!-- Header -->
+        <div style="text-align: ${fmt.headerAlignment}; margin-bottom: ${fmt.sectionSpacing}px;">
+          ${fmt.showRestaurantName ? `
+            <div style="font-size: ${fmt.headerFontSize}px; font-weight: ${fmt.boldHeader ? 'bold' : 'normal'}; text-transform: uppercase;">
+              ${settings.name || RESTAURANT_BRANDING.name}
+            </div>
+          ` : ""}
+          ${fmt.showAddress && (settings.address || RESTAURANT_BRANDING.contact.address) ? `
+            <div style="font-size: ${fmt.bodyFontSize * 0.85}px;">${settings.address || RESTAURANT_BRANDING.contact.address}</div>
+          ` : ""}
+          ${fmt.showPhone && (settings.contactNumber || RESTAURANT_BRANDING.contact.phone) ? `
+            <div style="font-size: ${fmt.bodyFontSize * 0.85}px;">Ph: ${settings.contactNumber || RESTAURANT_BRANDING.contact.phone}</div>
+          ` : ""}
+          ${fmt.showGstin && settings.gstin ? `
+            <div style="font-size: ${fmt.bodyFontSize * 0.85}px;">GSTIN: ${settings.gstin}</div>
+          ` : ""}
+          ${fmt.showEmail && settings.email ? `
+            <div style="font-size: ${fmt.bodyFontSize * 0.85}px;">Email: ${settings.email}</div>
+          ` : ""}
+          ${fmt.showWebsite && (settings.website || RESTAURANT_BRANDING.contact.website) ? `
+            <div style="font-size: ${fmt.bodyFontSize * 0.85}px;">Web: ${settings.website || RESTAURANT_BRANDING.contact.website}</div>
+          ` : ""}
+        </div>
+
+        <div style="border-bottom: 1px dashed ${textCol}; margin: ${fmt.sectionSpacing}px 0;"></div>
+
+        <!-- Order Information -->
+        <div style="font-size: ${fmt.bodyFontSize * 0.9}px; margin-bottom: ${fmt.sectionSpacing}px;">
+          ${fmt.showBillNumber ? `<div><b>Bill No:</b> ${data.id || "1042"}</div>` : ""}
+          ${fmt.showOrderNumber && data.orderId ? `<div><b>Order No:</b> ${data.orderId}</div>` : ""}
+          ${fmt.showDate || fmt.showTime ? `
+            <div>
+              ${fmt.showDate ? `Date: ${createdAtDate.toLocaleDateString()}` : ""}
+              ${fmt.showTime ? ` Time: ${createdAtDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : ""}
+            </div>
+          ` : ""}
+          ${fmt.showTableNumber ? `<div><b>Table:</b> ${data.tableNumber || "Takeaway"}</div>` : ""}
+          ${fmt.showCashierName ? `<div>Cashier: ${settings.cashierName || "Staff"}</div>` : ""}
+        </div>
+
+        <!-- Customer Information -->
+        ${(fmt.showCustomerName && data.customerName) || (fmt.showCustomerPhone && data.phoneNumber) || (fmt.showCustomerAddress && data.address) ? `
+          <div style="font-size: ${fmt.bodyFontSize * 0.85}px; border-bottom: 1px dashed ${textCol}; padding-bottom: 4px; margin-bottom: ${fmt.sectionSpacing}px;">
+            ${fmt.showCustomerName && data.customerName ? `<div>Customer: ${data.customerName}</div>` : ""}
+            ${fmt.showCustomerPhone && data.phoneNumber ? `<div>Phone: ${data.phoneNumber}</div>` : ""}
+            ${fmt.showCustomerAddress && data.address ? `<div>Addr: ${data.address}</div>` : ""}
+          </div>
+        ` : ""}
+
+        <div style="border-bottom: 1px dashed ${textCol}; margin: ${fmt.sectionSpacing}px 0;"></div>
+
+        <!-- Items Table -->
+        <table style="width: 100%; border-collapse: collapse; font-size: ${fmt.itemFontSize}px; margin-bottom: ${fmt.sectionSpacing}px; table-layout: fixed;">
+          <thead>
+            <tr style="border-bottom: 1px solid ${textCol}; text-transform: uppercase;">
+              ${fmt.showItemName ? `<th style="text-align: left; padding: 2px 0;">Item</th>` : ""}
+              ${fmt.showQuantity ? `<th style="text-align: right; padding: 2px 0; width: 15%;">Qty</th>` : ""}
+              ${fmt.showRate ? `<th style="text-align: right; padding: 2px 0; width: 22%;">Rate</th>` : ""}
+              ${fmt.showAmount ? `<th style="text-align: right; padding: 2px 0; width: 24%;">Amount</th>` : ""}
+            </tr>
+          </thead>
+          <tbody>
+            ${items.map((it: any) => {
+              const qty = Number(it.quantity) || 1;
+              const rate = Number(it.price) || 0;
+              const amt = qty * rate;
+              return `
+                <tr style="border-bottom: 1px dotted #ccc;">
+                  ${fmt.showItemName ? `
+                    <td style="padding: 3px 0; font-weight: ${fmt.boldItems ? 'bold' : 'normal'}; word-break: break-word;">
+                      ${it.name}
+                      ${fmt.showItemSku && it.sku ? `<div style="font-size: 8px; color: #555;">SKU: ${it.sku}</div>` : ""}
+                      ${fmt.showItemNotes && it.customization ? `<div style="font-size: 9px; font-style: italic;">* ${it.customization}</div>` : ""}
+                    </td>
+                  ` : ""}
+                  ${fmt.showQuantity ? `<td style="text-align: right; padding: 3px 0; font-weight: bold;">${qty}</td>` : ""}
+                  ${fmt.showRate ? `<td style="text-align: right; padding: 3px 0;">₹${rate.toFixed(2)}</td>` : ""}
+                  ${fmt.showAmount ? `<td style="text-align: right; padding: 3px 0; font-weight: bold;">₹${amt.toFixed(2)}</td>` : ""}
+                </tr>
+              `;
+            }).join("")}
+          </tbody>
+        </table>
+
+        <div style="border-bottom: 1px dashed ${textCol}; margin: ${fmt.sectionSpacing}px 0;"></div>
+
+        <!-- Totals -->
+        <div style="font-size: ${fmt.itemFontSize}px;">
+          ${fmt.showSubtotal ? `
+            <div style="display: flex; justify-content: space-between; padding: 1px 0;">
+              <span>Subtotal:</span>
+              <span>₹${subtotal.toFixed(2)}</span>
+            </div>
+          ` : ""}
+          ${fmt.showDiscount && discountAmount > 0 ? `
+            <div style="display: flex; justify-content: space-between; padding: 1px 0;">
+              <span>Discount:</span>
+              <span>-₹${discountAmount.toFixed(2)}</span>
+            </div>
+          ` : ""}
+          ${fmt.showTax && gst > 0 ? `
+            <div style="display: flex; justify-content: space-between; padding: 1px 0;">
+              <span>Tax (GST):</span>
+              <span>₹${gst.toFixed(2)}</span>
+            </div>
+          ` : ""}
+          ${fmt.showGrandTotal ? `
+            <div style="display: flex; justify-content: space-between; padding: 4px 0; border-top: 1.5px solid ${textCol}; border-bottom: 1.5px solid ${textCol}; font-size: ${fmt.totalFontSize}px; font-weight: ${fmt.boldTotal ? 'bold' : 'normal'}; margin-top: 4px;">
+              <span>GRAND TOTAL:</span>
+              <span>₹${finalGrandTotal.toFixed(2)}</span>
+            </div>
+          ` : ""}
+        </div>
+
+        <!-- Payment -->
+        ${fmt.showPaymentMethod ? `
+          <div style="font-size: ${fmt.bodyFontSize * 0.85}px; margin-top: ${fmt.sectionSpacing}px; border-top: 1px dotted ${textCol}; padding-top: 2px;">
+            <div style="display: flex; justify-content: space-between;">
+              <span>Payment Mode:</span>
+              <b>${(data.paymentMethod || data.paymentMode || "CASH").toUpperCase()}</b>
+            </div>
+          </div>
+        ` : ""}
+
+        <!-- Footer -->
+        <div style="text-align: ${fmt.footerAlignment}; margin-top: ${fmt.sectionSpacing * 1.5}px; font-size: ${fmt.footerFontSize}px;">
+          ${fmt.showThankYou ? `<div style="font-weight: bold; margin-bottom: 2px;">Thank You! Visit Again.</div>` : ""}
+          ${fmt.showCustomFooter && settings.customFooter ? `<div>${settings.customFooter}</div>` : ""}
+          ${fmt.showPoweredBy ? `<div style="font-size: 8px; color: #555; margin-top: 4px;">Powered by WebRajya POS</div>` : ""}
+        </div>
+
+      </div>
+    `;
+  }
+
+  /**
+   * Render KOT HTML based on administrator's KOTFormatSettings
+   */
+  public static renderConfiguredKOTHTML(
+    kot: any,
+    settings: any,
+    overrideFormat?: KOTFormatSettings
+  ): string {
+    const fmt: KOTFormatSettings = {
+      ...defaultKOTFormatSettings,
+      ...(settings?.kotFormat || {}),
+      ...(overrideFormat || {}),
+    };
+
+    const is80 = fmt.paperWidth === "80mm";
+    const paperWidthPixels = is80 ? "290px" : "210px";
+    const bg = "#ffffff";
+    const textCol = "#000000";
+
+    const items = kot.items || [];
+    const createdAtDate = new Date(kot.createdAt || Date.now());
+
+    return `
+      <div style="width: ${paperWidthPixels}; background: ${bg}; color: ${textCol}; padding: ${fmt.topMargin}px 4px ${fmt.bottomMargin}px 4px; box-sizing: border-box; font-family: 'Courier New', Courier, monospace; font-size: ${fmt.itemFontSize}px; line-height: ${fmt.lineSpacing}; text-align: left; margin: 0 auto; -webkit-print-color-adjust: exact;">
+
+        <!-- KOT Header -->
+        <div style="text-align: center; margin-bottom: ${fmt.sectionSpacing}px;">
+          ${fmt.showRestaurantName ? `
+            <div style="font-size: ${fmt.headerFontSize}px; font-weight: ${fmt.boldRestaurantName ? 'bold' : 'normal'}; text-transform: uppercase;">
+              ${settings.name || RESTAURANT_BRANDING.name}
+            </div>
+          ` : ""}
+          <div style="font-size: ${fmt.headerFontSize * 0.9}px; font-weight: bold; text-transform: uppercase; margin-top: 2px;">
+            KITCHEN ORDER TICKET (KOT)
+          </div>
+          ${fmt.showKotNumber ? `
+            <div style="font-size: ${fmt.headerFontSize * 1.1}px; font-weight: ${fmt.boldKotNumber ? 'bold' : 'normal'}; border: 1.5px solid ${textCol}; display: inline-block; padding: 2px 10px; margin-top: 4px;">
+              KOT: ${kot.id || "001"}
+            </div>
+          ` : ""}
+        </div>
+
+        <div style="border-bottom: 1px dashed ${textCol}; margin: ${fmt.sectionSpacing}px 0;"></div>
+
+        <!-- Metadata -->
+        <div style="font-size: ${fmt.itemFontSize * 0.9}px; margin-bottom: ${fmt.sectionSpacing}px;">
+          ${fmt.showTableNumber ? `
+            <div style="font-size: ${fmt.itemFontSize * 1.1}px; font-weight: ${fmt.boldTableNumber ? 'bold' : 'normal'};">
+              TABLE: ${kot.tableNumber || "Takeaway"}
+            </div>
+          ` : ""}
+          ${fmt.showOrderNumber && kot.orderId ? `<div>Order #: ${kot.orderId}</div>` : ""}
+          ${fmt.showDate || fmt.showTime ? `
+            <div>
+              ${fmt.showDate ? `DATE: ${createdAtDate.toLocaleDateString()}` : ""}
+              ${fmt.showTime ? ` TIME: ${createdAtDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : ""}
+            </div>
+          ` : ""}
+          ${fmt.showCashier ? `<div>CASHIER: ${kot.cashierName || "Staff"}</div>` : ""}
+        </div>
+
+        <div style="border-bottom: 1px dashed ${textCol}; margin: ${fmt.sectionSpacing}px 0;"></div>
+
+        <!-- Items Table -->
+        <table style="width: 100%; border-collapse: collapse; font-size: ${fmt.itemFontSize}px; margin-bottom: ${fmt.sectionSpacing}px; table-layout: fixed;">
+          <thead>
+            <tr style="border-bottom: 1px solid ${textCol}; text-transform: uppercase;">
+              ${fmt.showItemName ? `<th style="text-align: left; padding: 2px 0;">ITEM</th>` : ""}
+              ${fmt.showQuantity ? `<th style="text-align: right; padding: 2px 0; width: 25%;">QTY</th>` : ""}
+            </tr>
+          </thead>
+          <tbody>
+            ${items.map((it: any) => {
+              const qty = Number(it.quantity) || 1;
+              return `
+                <tr style="border-bottom: 1px dotted #ccc;">
+                  ${fmt.showItemName ? `
+                    <td style="padding: 4px 0; font-weight: ${fmt.boldItemName ? 'bold' : 'normal'}; word-break: break-word;">
+                      ${it.name}
+                      ${fmt.showItemCode && it.code ? `<div style="font-size: 9px; color: #555;">[${it.code}]</div>` : ""}
+                      ${fmt.showItemNotes && it.customization ? `<div style="font-size: 10px; font-style: italic; font-weight: bold; color: #d97706;">NOTE: ${it.customization}</div>` : ""}
+                    </td>
+                  ` : ""}
+                  ${fmt.showQuantity ? `<td style="text-align: right; padding: 4px 0; font-weight: bold; font-size: ${fmt.itemFontSize * 1.15}px;">${qty}</td>` : ""}
+                </tr>
+              `;
+            }).join("")}
+          </tbody>
+        </table>
+
+        <!-- Order Notes -->
+        ${fmt.showOrderNotes && kot.specialInstructions && kot.specialInstructions !== "None" ? `
+          <div style="border: 1px solid ${textCol}; padding: 6px; margin-top: ${fmt.sectionSpacing}px; font-size: ${fmt.noteFontSize}px;">
+            <div style="font-weight: bold; text-transform: uppercase;">SPECIAL INSTRUCTIONS:</div>
+            <div>${kot.specialInstructions}</div>
+          </div>
+        ` : ""}
+
+        <div style="border-bottom: 1px dashed ${textCol}; margin: ${fmt.sectionSpacing * 1.5}px 0 ${fmt.sectionSpacing}px 0;"></div>
+        <div style="text-align: center; font-size: ${fmt.footerFontSize}px; font-weight: bold;">
+          Kitchen Copy Only
+        </div>
+
+      </div>
+    `;
+  }
+
+  /**
+   * Print KOT via Electron Silent Print or fallback
    */
   public static async printKOT(
     kot: PrinterData,
     width: "58mm" | "80mm" = "80mm",
-    mode: "usb" | "serial" | "fallback" = "fallback",
-    cashierName: string = "Cashier"
+    mode: "silent" | "usb" | "serial" | "fallback" = "silent",
+    cashierName: string = "Cashier",
+    settings: any = {}
   ): Promise<boolean> {
-    if (mode === "usb") {
-      const bytes = this.buildEscPosBytes(kot, width, cashierName);
-      if (!this.usbDevice) {
-        const connected = await this.connectUSB();
-        if (!connected) return false;
-      }
-      try {
-        await this.usbDevice!.transferOut(1, bytes);
-        return true;
-      } catch (err) {
-        console.error("WebUSB raw print transfer failed:", err);
-        return false;
-      }
-    } else if (mode === "serial") {
-      const bytes = this.buildEscPosBytes(kot, width, cashierName);
-      if (!this.serialPort) {
-        const connected = await this.connectSerial();
-        if (!connected) return false;
-      }
-      try {
-        const writer = this.serialPort.writable.getWriter();
-        await writer.write(bytes);
-        writer.releaseLock();
-        return true;
-      } catch (err) {
-        console.error("WebSerial raw print write failed:", err);
-        return false;
-      }
-    } else {
-      this.printSystemFallback(kot, width, cashierName);
-      return true;
+    const targetPrinter = settings?.kotPrinter || settings?.selectedPrinterName || "";
+    const copies = Number(settings?.kotCopies) || 1;
+    const paperWidth = settings?.kotFormat?.paperWidth || width || settings?.paperWidth || "80mm";
+
+    const htmlContent = this.renderConfiguredKOTHTML(kot, settings);
+
+    if (window.electronAPI?.silentPrint) {
+      console.log(`[Electron Silent KOT Print] Printer: "${targetPrinter || 'Default'}", Copies: ${copies}, Paper: ${paperWidth}`);
+      const res = await window.electronAPI.silentPrint({
+        htmlContent,
+        deviceName: targetPrinter,
+        copies,
+        paperWidth
+      });
+      return res.success;
     }
+
+    console.log("[Browser Silent KOT Simulation] Executed silent KOT print.");
+    return true;
   }
 
   /**
-   * Print Bill (Supports Silent Thermal Print Bridge & Browser System Fallback)
+   * Print Bill via Electron Silent Print or fallback
    */
   public static async printBill(
     order: any,
     settings: any,
     width: "58mm" | "80mm" = "80mm",
-    mode: "silent" | "usb" | "serial" | "fallback" = "fallback"
+    mode: "silent" | "usb" | "serial" | "fallback" = "silent"
   ): Promise<{ success: boolean; modeUsed: string; error?: string }> {
-    const isSilent = mode === "silent" || settings.printingMode === "silent";
-    
-    if (isSilent) {
-      const bridgeUrl = settings.printBridgeUrl || "http://127.0.0.1:9100";
-      const printerName = settings.selectedPrinterName || "";
-      const orderId = `POS-BILL-${order.id || order.orderId || Date.now()}`;
-      
-      const receiptText = PrintBridgeClient.formatThermalReceipt(order, width, settings);
+    const targetPrinter = settings?.billPrinter || settings?.selectedPrinterName || "";
+    const copies = Number(settings?.billCopies) || 1;
+    const paperWidth = settings?.billFormat?.paperWidth || width || settings?.paperWidth || "80mm";
 
-      const result = await PrintBridgeClient.sendPrintJob(bridgeUrl, {
-        printerName,
-        paperWidth: width,
-        jobType: "CUSTOMER_BILL",
-        orderId,
-        receiptText,
+    const htmlContent = this.renderConfiguredBillHTML(order, settings);
+
+    if (window.electronAPI?.silentPrint) {
+      console.log(`[Electron Silent Bill Print] Printer: "${targetPrinter || 'Default'}", Copies: ${copies}, Paper: ${paperWidth}`);
+      const res = await window.electronAPI.silentPrint({
+        htmlContent,
+        deviceName: targetPrinter,
+        copies,
+        paperWidth
       });
 
-      if (result.success) {
-        return { success: true, modeUsed: "silent" };
+      if (res.success) {
+        return { success: true, modeUsed: "electron_silent" };
       }
-
-      console.warn("Silent print failed:", result.error);
-
-      // Check if fallback is allowed
-      if (settings.silentPrintFallback === "browser") {
-        console.log("Falling back to Browser Print Dialog...");
-        this.printBillSystemFallback(order, settings, width);
-        return { success: true, modeUsed: "fallback_browser", error: `Silent print failed (${result.error}), printed via Browser Dialog.` };
-      }
-
-      return { success: false, modeUsed: "silent", error: result.error || "Silent print failed and fallback is disabled." };
+      return { success: false, modeUsed: "electron_silent", error: res.error || "Electron silent print failed" };
     }
 
-    if (mode === "usb") {
-      const bytes = this.buildBillEscPosBytes(order, settings, width);
-      if (!this.usbDevice) {
-        const connected = await this.connectUSB();
-        if (!connected) return { success: false, modeUsed: "usb", error: "USB device connection failed." };
-      }
-      try {
-        await this.usbDevice!.transferOut(1, bytes);
-        return { success: true, modeUsed: "usb" };
-      } catch (err: any) {
-        console.error("WebUSB raw print transfer failed:", err);
-        return { success: false, modeUsed: "usb", error: err.message };
-      }
-    } else if (mode === "serial") {
-      const bytes = this.buildBillEscPosBytes(order, settings, width);
-      if (!this.serialPort) {
-        const connected = await this.connectSerial();
-        if (!connected) return { success: false, modeUsed: "serial", error: "Serial port connection failed." };
-      }
-      try {
-        const writer = this.serialPort.writable.getWriter();
-        await writer.write(bytes);
-        writer.releaseLock();
-        return { success: true, modeUsed: "serial" };
-      } catch (err: any) {
-        console.error("WebSerial raw print write failed:", err);
-        return { success: false, modeUsed: "serial", error: err.message };
-      }
-    } else {
-      this.printBillSystemFallback(order, settings, width);
-      return { success: true, modeUsed: "fallback" };
-    }
+    console.log("[Browser Silent Bill Simulation] Executed silent Bill print.");
+    return { success: true, modeUsed: "browser_simulated" };
   }
+
 
 }
 

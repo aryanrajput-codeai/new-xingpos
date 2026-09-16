@@ -623,50 +623,133 @@ export default function PosBillingPortal({
       setAppliedCoupon(null);
       setCouponCode("");
 
-      // Auto-print bill silently if configured
-      if (settings.autoPrintPOSBill && settings.printingMode === "silent") {
-        try {
-          const printRes = await PhysicalThermalPrinter.printBill(
-            finalOrder,
-            settings,
-            settings.paperWidth || "80mm",
-            "silent"
-          );
+      // -----------------------------------------------------------------
+      // CONFIGURED PRINT WORKFLOW: BILL_ONLY | KOT_ONLY | BOTH
+      // -----------------------------------------------------------------
+      const paperWidth = settings.billFormat?.paperWidth || settings.paperWidth || "80mm";
+      const printWorkflowMode = settings.printMode || "BOTH";
 
-          if (printRes.success) {
-            await LocalDB.apiUpdateOrderPrintStatus(finalOrder.id, "bill", "Printed");
-            setPrintNotice({
-              type: "success",
-              message: `Invoice #${finalOrder.id} confirmed & bill printed silently to ${settings.selectedPrinterName || "thermal printer"}!`,
-              order: finalOrder
-            });
-          } else {
-            await LocalDB.apiUpdateOrderPrintStatus(finalOrder.id, "bill", "Failed");
-            setPrintNotice({
-              type: "error",
-              message: `Order #${finalOrder.id} created successfully, but bill printing failed: ${printRes.error || "Printer unavailable"}`,
-              order: finalOrder
-            });
-          }
-        } catch (printErr: any) {
+      // Synthesize KOT structure for the order
+      const kotObject = {
+        id: finalOrder.kotNumber || `KOT-${finalOrder.id.replace("SR-", "")}`,
+        orderId: finalOrder.id,
+        tableNumber: finalOrder.tableNumber || "Takeaway",
+        customerName: finalOrder.customerName,
+        orderType: finalOrder.orderType,
+        status: "New Order",
+        specialInstructions: finalOrder.items.map((i: any) => i.customization).filter(Boolean).join(", ") || "None",
+        createdAt: finalOrder.createdAt,
+        preparationTime: 15,
+        items: finalOrder.items
+      };
+
+      if (printWorkflowMode === "BILL_ONLY") {
+        setPrintNotice({
+          type: "info",
+          message: `Order #${finalOrder.id} — Printing Customer Bill...`,
+          order: finalOrder
+        });
+
+        await LocalDB.apiUpdateOrderPrintStatus(finalOrder.id, "bill", "Printing");
+        const billRes = await PhysicalThermalPrinter.printBill(finalOrder, settings, paperWidth, "silent");
+
+        if (billRes.success) {
+          await LocalDB.apiUpdateOrderPrintStatus(finalOrder.id, "bill", "Printed");
+          setPrintNotice({
+            type: "success",
+            message: `Order #${finalOrder.id} finalized! Customer Bill printed. Ready for next order.`,
+            order: finalOrder
+          });
+        } else {
           await LocalDB.apiUpdateOrderPrintStatus(finalOrder.id, "bill", "Failed");
           setPrintNotice({
             type: "error",
-            message: `Order #${finalOrder.id} created successfully, but bill printing failed: ${printErr.message}`,
+            message: `Order #${finalOrder.id} created, but Customer Bill printing failed: ${billRes.error || "Printer unavailable"}`,
+            order: finalOrder
+          });
+        }
+      } else if (printWorkflowMode === "KOT_ONLY") {
+        setPrintNotice({
+          type: "info",
+          message: `Order #${finalOrder.id} — Printing KOT...`,
+          order: finalOrder
+        });
+
+        await LocalDB.apiUpdateOrderPrintStatus(finalOrder.id, "kot", "Printing");
+        const kotSuccess = await PhysicalThermalPrinter.printKOT(kotObject as any, paperWidth, "silent", `POS (${currentRole})`, settings);
+
+        if (kotSuccess) {
+          await LocalDB.apiUpdateOrderPrintStatus(finalOrder.id, "kot", "Printed");
+          setPrintNotice({
+            type: "success",
+            message: `Order #${finalOrder.id} finalized! KOT printed. Ready for next order.`,
+            order: finalOrder
+          });
+        } else {
+          await LocalDB.apiUpdateOrderPrintStatus(finalOrder.id, "kot", "Failed");
+          setPrintNotice({
+            type: "error",
+            message: `Order #${finalOrder.id} created, but KOT printing failed!`,
             order: finalOrder
           });
         }
       } else {
-        // Open receipt preview / print workstation modal
-        setShowBillPrint(finalOrder);
+        // BOTH (Default): KOT FIRST -> CUSTOMER BILL SECOND
         setPrintNotice({
-          type: "success",
-          message: `Bill #${finalOrder.id} finalized (₹${finalOrder.grandTotal}) — Receipt ready for print.`,
+          type: "info",
+          message: `Order #${finalOrder.id} — Printing KOT...`,
           order: finalOrder
         });
+
+        await LocalDB.apiUpdateOrderPrintStatus(finalOrder.id, "kot", "Printing");
+        const kotSuccess = await PhysicalThermalPrinter.printKOT(kotObject as any, paperWidth, "silent", `POS (${currentRole})`, settings);
+
+        if (!kotSuccess) {
+          await LocalDB.apiUpdateOrderPrintStatus(finalOrder.id, "kot", "Failed");
+          await LocalDB.apiUpdateOrderPrintStatus(finalOrder.id, "bill", "Failed");
+          setPrintNotice({
+            type: "error",
+            message: `Order #${finalOrder.id} created, but KOT printing failed! Customer Bill printing aborted.`,
+            order: finalOrder
+          });
+          return;
+        }
+
+        await LocalDB.apiUpdateOrderPrintStatus(finalOrder.id, "kot", "Printed");
+
+        // Brief delay between KOT and Bill for paper feed/cut
+        setPrintNotice({
+          type: "info",
+          message: `Order #${finalOrder.id} — KOT Printed! Printing Customer Bill...`,
+          order: finalOrder
+        });
+        await new Promise(resolve => setTimeout(resolve, 800));
+
+        // Step 2: Print Customer Bill
+        await LocalDB.apiUpdateOrderPrintStatus(finalOrder.id, "bill", "Printing");
+        const billRes = await PhysicalThermalPrinter.printBill(finalOrder, settings, paperWidth, "silent");
+
+        if (billRes.success) {
+          await LocalDB.apiUpdateOrderPrintStatus(finalOrder.id, "bill", "Printed");
+          setPrintNotice({
+            type: "success",
+            message: `Order #${finalOrder.id} finalized! KOT & Customer Bill printed. Ready for next order.`,
+            order: finalOrder
+          });
+        } else {
+          await LocalDB.apiUpdateOrderPrintStatus(finalOrder.id, "bill", "Failed");
+          setPrintNotice({
+            type: "error",
+            message: `Order #${finalOrder.id}: KOT printed successfully, but Customer Bill printing failed: ${billRes.error || "Printer unavailable"}`,
+            order: finalOrder
+          });
+        }
       }
 
-      // Auto-dismiss success notification after 5 seconds
+      // Ensure modal is closed so POS remains on main billing screen
+      setShowBillPrint(null);
+
+      // Auto-dismiss notification after 5 seconds
       setTimeout(() => {
         setPrintNotice(prev => prev?.order.id === finalOrder.id && prev.type === "success" ? null : prev);
       }, 5000);

@@ -139,6 +139,176 @@ export interface AuditLog {
   ipAddress: string;
 }
 
+export type PrintMode = "BILL_ONLY" | "KOT_ONLY" | "BOTH";
+
+export interface BillFormatSettings {
+  paperWidth: "80mm" | "58mm";
+  // Header
+  showRestaurantName: boolean;
+  showAddress: boolean;
+  showPhone: boolean;
+  showGstin: boolean;
+  showEmail: boolean;
+  showWebsite: boolean;
+  // Order Info
+  showBillNumber: boolean;
+  showDate: boolean;
+  showTime: boolean;
+  showTableNumber: boolean;
+  showOrderNumber: boolean;
+  showCashierName: boolean;
+  // Customer Info
+  showCustomerName: boolean;
+  showCustomerPhone: boolean;
+  showCustomerAddress: boolean;
+  // Items
+  showItemName: boolean;
+  showQuantity: boolean;
+  showRate: boolean;
+  showAmount: boolean;
+  showItemSku: boolean;
+  showItemNotes: boolean;
+  // Totals
+  showSubtotal: boolean;
+  showDiscount: boolean;
+  showTax: boolean;
+  showGrandTotal: boolean;
+  // Payment
+  showPaymentMethod: boolean;
+  showCashReceived: boolean;
+  showChangeReturned: boolean;
+  // Footer
+  showThankYou: boolean;
+  showCustomFooter: boolean;
+  showPoweredBy: boolean;
+  // Typography
+  headerFontSize: number;
+  bodyFontSize: number;
+  itemFontSize: number;
+  totalFontSize: number;
+  footerFontSize: number;
+  boldHeader: boolean;
+  boldItems: boolean;
+  boldTotal: boolean;
+  headerAlignment: "left" | "center" | "right";
+  footerAlignment: "left" | "center" | "right";
+  // Spacing & Layout
+  lineSpacing: number;
+  sectionSpacing: number;
+  topMargin: number;
+  bottomMargin: number;
+}
+
+export interface KOTFormatSettings {
+  paperWidth: "80mm" | "58mm";
+  // Header
+  showRestaurantName: boolean;
+  showKotNumber: boolean;
+  showTableNumber: boolean;
+  showDate: boolean;
+  showTime: boolean;
+  showOrderNumber: boolean;
+  showCashier: boolean;
+  // Items
+  showItemName: boolean;
+  showQuantity: boolean;
+  showItemCode: boolean;
+  showItemNotes: boolean;
+  // Order Notes
+  showOrderNotes: boolean;
+  // Typography
+  headerFontSize: number;
+  itemFontSize: number;
+  noteFontSize: number;
+  footerFontSize: number;
+  boldRestaurantName: boolean;
+  boldKotNumber: boolean;
+  boldTableNumber: boolean;
+  boldItemName: boolean;
+  // Spacing & Layout
+  lineSpacing: number;
+  sectionSpacing: number;
+  topMargin: number;
+  bottomMargin: number;
+}
+
+export const defaultBillFormatSettings: BillFormatSettings = {
+  paperWidth: "80mm",
+  showRestaurantName: true,
+  showAddress: true,
+  showPhone: true,
+  showGstin: false,
+  showEmail: false,
+  showWebsite: false,
+  showBillNumber: true,
+  showDate: true,
+  showTime: true,
+  showTableNumber: true,
+  showOrderNumber: false,
+  showCashierName: false,
+  showCustomerName: false,
+  showCustomerPhone: false,
+  showCustomerAddress: false,
+  showItemName: true,
+  showQuantity: true,
+  showRate: true,
+  showAmount: true,
+  showItemSku: false,
+  showItemNotes: false,
+  showSubtotal: true,
+  showDiscount: false,
+  showTax: false,
+  showGrandTotal: true,
+  showPaymentMethod: true,
+  showCashReceived: false,
+  showChangeReturned: false,
+  showThankYou: true,
+  showCustomFooter: false,
+  showPoweredBy: true,
+  headerFontSize: 18,
+  bodyFontSize: 12,
+  itemFontSize: 12,
+  totalFontSize: 14,
+  footerFontSize: 10,
+  boldHeader: true,
+  boldItems: true,
+  boldTotal: true,
+  headerAlignment: "center",
+  footerAlignment: "center",
+  lineSpacing: 1.2,
+  sectionSpacing: 6,
+  topMargin: 0,
+  bottomMargin: 10,
+};
+
+export const defaultKOTFormatSettings: KOTFormatSettings = {
+  paperWidth: "80mm",
+  showRestaurantName: true,
+  showKotNumber: true,
+  showTableNumber: true,
+  showDate: true,
+  showTime: true,
+  showOrderNumber: false,
+  showCashier: false,
+  showItemName: true,
+  showQuantity: true,
+  showItemCode: false,
+  showItemNotes: true,
+  showOrderNotes: true,
+  headerFontSize: 18,
+  itemFontSize: 14,
+  noteFontSize: 12,
+  footerFontSize: 10,
+  boldRestaurantName: true,
+  boldKotNumber: true,
+  boldTableNumber: true,
+  boldItemName: true,
+  lineSpacing: 1.2,
+  sectionSpacing: 6,
+  topMargin: 0,
+  bottomMargin: 10,
+};
+
 export interface RestaurantSettings {
   name: string;
   contactNumber: string;
@@ -189,6 +359,15 @@ export interface RestaurantSettings {
   selectedPrinterName?: string;
   autoPrintPOSBill?: boolean;
   silentPrintFallback?: "browser" | "none";
+
+  // Printing & Receipt Designer Persistent Settings
+  printMode?: PrintMode;
+  kotPrinter?: string;
+  billPrinter?: string;
+  kotCopies?: number;
+  billCopies?: number;
+  billFormat?: BillFormatSettings;
+  kotFormat?: KOTFormatSettings;
 }
 
 // Generate premium mock orders spanning the last 30 days
@@ -350,6 +529,13 @@ const defaultSettings: RestaurantSettings = {
   selectedPrinterName: "",
   autoPrintPOSBill: false,
   silentPrintFallback: "browser",
+  printMode: "BOTH",
+  kotPrinter: "",
+  billPrinter: "",
+  kotCopies: 1,
+  billCopies: 1,
+  billFormat: defaultBillFormatSettings,
+  kotFormat: defaultKOTFormatSettings,
   facebookUrl: RESTAURANT_BRANDING.contact.facebookUrl || "",
   instagramUrl: RESTAURANT_BRANDING.contact.instagramUrl || "",
   twitterUrl: RESTAURANT_BRANDING.contact.twitterUrl || "",

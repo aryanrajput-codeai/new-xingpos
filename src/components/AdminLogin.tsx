@@ -106,7 +106,7 @@ export default function AdminLogin({ onLoginSuccess }: AdminLoginProps) {
               {RESTAURANT_BRANDING.name} <span className="text-[#aa7c11]">Control</span>
             </h1>
             <p className="text-xs text-stone-500 font-mono tracking-widest uppercase mt-0.5">
-              Secure Restaurant Administration
+              Powered by WebRajya • Secure Admin POS
             </p>
           </div>
         </div>

@@ -3,658 +3,984 @@ import { motion } from "motion/react";
 import { 
   Printer, 
   RefreshCw, 
-  Trash2, 
   Sliders, 
   CheckCircle2, 
   FileText, 
-  Terminal,
   Activity,
   Save,
-  Check
+  RotateCcw,
+  AlertTriangle,
+  Flame,
+  UtensilsCrossed,
+  Layers,
+  Sparkles
 } from "lucide-react";
-import { PrintQueueManager, PrintJob, PrintHistoryLog } from "../lib/printQueueManager";
-import { LocalDB } from "../lib/db";
 import { 
-  getWRPrinterSettings, 
-  saveWRPrinterSettings, 
-  WRPrinterSettings,
-  PhysicalThermalPrinter
-} from "../lib/printerService";
-import { RESTAURANT_BRANDING } from "../config/branding";
+  LocalDB, 
+  RestaurantSettings, 
+  PrintMode, 
+  BillFormatSettings, 
+  KOTFormatSettings, 
+  defaultBillFormatSettings, 
+  defaultKOTFormatSettings 
+} from "../lib/db";
+import { PhysicalThermalPrinter } from "../lib/printerService";
+
+interface DetectedPrinter {
+  name: string;
+  displayName?: string;
+  isDefault?: boolean;
+}
+
+const sampleBillOrder = {
+  id: "1042",
+  orderId: "SR-1042",
+  customerName: "Aarav Sharma",
+  phoneNumber: "+91 98765 43210",
+  address: "MG Road, Suite 402, Bengaluru",
+  orderType: "dine-in",
+  tableNumber: "05",
+  createdAt: new Date().toISOString(),
+  items: [
+    { name: "Masala Dosa", quantity: 2, price: 90, sku: "DOSA-01", customization: "Extra crispy" },
+    { name: "Paneer Tikka", quantity: 1, price: 199, sku: "STARTER-04" },
+    { name: "Veg Noodles", quantity: 2, price: 140, sku: "CHINESE-02" },
+  ],
+  subtotal: 659,
+  discountAmount: 50,
+  gst: 30.45,
+  grandTotal: 639.45,
+  paymentMethod: "UPI",
+  paymentStatus: "PAID",
+};
+
+const sampleKOTObject = {
+  id: "001",
+  orderId: "SR-1042",
+  tableNumber: "05",
+  cashierName: "Rohan Staff",
+  createdAt: new Date().toISOString(),
+  items: [
+    { name: "Masala Dosa", quantity: 2, code: "DOSA-01", customization: "Less spicy" },
+    { name: "Paneer Tikka", quantity: 1, code: "PT-04", customization: "No onion" },
+    { name: "Veg Noodles", quantity: 2, code: "VN-02" },
+  ],
+  specialInstructions: "Less spicy, No onion",
+};
 
 export default function PrintersConfigTab() {
-  const [pSettings, setPSettings] = useState<WRPrinterSettings>(() => getWRPrinterSettings());
+  const [settings, setSettings] = useState<RestaurantSettings>(() => LocalDB.getSettings());
+  const [osPrinters, setOsPrinters] = useState<DetectedPrinter[]>([]);
+  const [isLoadingPrinters, setIsLoadingPrinters] = useState(false);
+  const [activeTab, setActiveTab] = useState<"assignment" | "billFormat" | "kotFormat">("assignment");
   
-  const [queue, setQueue] = useState<PrintJob[]>(() => PrintQueueManager.getQueue());
-  const [logs, setLogs] = useState<PrintHistoryLog[]>(() => PrintQueueManager.getLogs());
-  const [isProcessing, setIsProcessing] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
+  const [testNotice, setTestNotice] = useState<{ type: "success" | "error" | "info"; message: string } | null>(null);
+
+  // Deep comparison check for unsaved state
+  const isDirty = (() => {
+    const saved = LocalDB.getSettings();
+    return JSON.stringify(settings) !== JSON.stringify(saved);
+  })();
+
+  const fetchPrinters = async () => {
+    setIsLoadingPrinters(true);
+    try {
+      if (window.electronAPI?.getPrinters) {
+        const printers = await window.electronAPI.getPrinters();
+        setOsPrinters(printers || []);
+      } else {
+        // Fallback sample printers for browser dev environment
+        setOsPrinters([
+          { name: "EPSON TM-T82X", displayName: "EPSON TM-T82X Receipt Printer", isDefault: true },
+          { name: "Artery POS80", displayName: "Artery POS80 Thermal Printer", isDefault: false },
+          { name: "Kitchen Thermal PRT-58", displayName: "Kitchen Thermal PRT-58", isDefault: false },
+          { name: "Microsoft Print to PDF", displayName: "Microsoft Print to PDF", isDefault: false },
+        ]);
+      }
+    } catch (err: any) {
+      console.warn("Failed to fetch OS printers:", err);
+    } finally {
+      setIsLoadingPrinters(false);
+    }
+  };
 
   useEffect(() => {
-    const handleUpdate = () => {
-      setQueue(PrintQueueManager.getQueue());
-      setLogs(PrintQueueManager.getLogs());
-    };
-
-    window.addEventListener("print_queue_updated", handleUpdate);
-    const interval = setInterval(handleUpdate, 3000);
-
-    return () => {
-      window.removeEventListener("print_queue_updated", handleUpdate);
-      clearInterval(interval);
-    };
+    fetchPrinters();
   }, []);
 
-  const handleSaveSettings = () => {
-    saveWRPrinterSettings(pSettings);
+  const handleSave = async () => {
+    await LocalDB.apiSaveSettings(settings);
     setSaveSuccess(true);
     setTimeout(() => setSaveSuccess(false), 3000);
-    window.dispatchEvent(new CustomEvent("print_queue_updated"));
   };
 
-  const handleThermalTestPrint = () => {
-    try {
-      const dummyOrder = {
-        id: "TEST-001",
-        customerName: "Thermal Test Ticket",
-        phoneNumber: "9876543210",
-        orderType: "dine-in",
-        tableNumber: "T-01",
-        createdAt: new Date().toISOString(),
-        items: [
-          { name: "Sample Culinary Dish", quantity: 2, price: 180, gstRate: 5 },
-          { name: "Special House Beverage", quantity: 1, price: 120, gstRate: 5 }
-        ],
-        subTotal: 480,
-        cgst: 12,
-        sgst: 12,
-        tax: 24,
-        grandTotal: 504,
-        orderStatus: "Completed",
-        paymentStatus: "Paid",
-        paymentMethod: "Cash"
-      };
-
-      PhysicalThermalPrinter.printPremiumHTML("bill", dummyOrder, LocalDB.getSettings(), {
-        paperWidth: pSettings.paperWidth,
-        copies: pSettings.copies,
-        autoCut: pSettings.autoCut,
-        cutType: pSettings.cutType
-      });
-    } catch (err: any) {
-      alert("❌ Test Print Failed: " + (err.message || "Unknown error"));
+  const handleResetToDefaults = () => {
+    if (confirm("Reset printing and receipt format configurations to defaults? This will not alter database orders or menu items.")) {
+      setSettings(prev => ({
+        ...prev,
+        printMode: "BOTH",
+        kotCopies: 1,
+        billCopies: 1,
+        billFormat: { ...defaultBillFormatSettings },
+        kotFormat: { ...defaultKOTFormatSettings }
+      }));
     }
   };
 
-  const handleManualRetry = async () => {
-    setIsProcessing(true);
-    await PrintQueueManager.processQueue();
-    setIsProcessing(false);
+  const handleTestBillPrint = async () => {
+    setTestNotice({ type: "info", message: "Sending test Bill print to configured printer..." });
+    const res = await PhysicalThermalPrinter.printBill(sampleBillOrder, settings, settings.billFormat?.paperWidth || "80mm", "silent");
+    if (res.success) {
+      setTestNotice({ type: "success", message: "Test Bill print job dispatched successfully!" });
+    } else {
+      setTestNotice({ type: "error", message: `Test Bill print failed: ${res.error || "Printer not responding"}` });
+    }
+    setTimeout(() => setTestNotice(null), 4000);
   };
 
-  const handleClearQueue = () => {
-    if (confirm("Are you sure you want to purge the current background print queue? This cannot be undone.")) {
-      PrintQueueManager.saveQueue([]);
+  const handleTestKOTPrint = async () => {
+    setTestNotice({ type: "info", message: "Sending test KOT print to configured printer..." });
+    const success = await PhysicalThermalPrinter.printKOT(sampleKOTObject as any, settings.kotFormat?.paperWidth || "80mm", "silent", "Admin", settings);
+    if (success) {
+      setTestNotice({ type: "success", message: "Test KOT print job dispatched successfully!" });
+    } else {
+      setTestNotice({ type: "error", message: "Test KOT print failed! Check printer connection." });
     }
+    setTimeout(() => setTestNotice(null), 4000);
   };
 
-  const handlePurgeLogs = () => {
-    if (confirm("Are you sure you want to clear the printer transaction log history?")) {
-      PrintQueueManager.saveLogs([]);
-    }
+  const currentBillFormat: BillFormatSettings = {
+    ...defaultBillFormatSettings,
+    ...(settings.billFormat || {})
   };
+
+  const currentKotFormat: KOTFormatSettings = {
+    ...defaultKOTFormatSettings,
+    ...(settings.kotFormat || {})
+  };
+
+  const updateBillFormat = (updates: Partial<BillFormatSettings>) => {
+    setSettings(prev => ({
+      ...prev,
+      billFormat: {
+        ...defaultBillFormatSettings,
+        ...(prev.billFormat || {}),
+        ...updates
+      }
+    }));
+  };
+
+  const updateKotFormat = (updates: Partial<KOTFormatSettings>) => {
+    setSettings(prev => ({
+      ...prev,
+      kotFormat: {
+        ...defaultKOTFormatSettings,
+        ...(prev.kotFormat || {}),
+        ...updates
+      }
+    }));
+  };
+
+  // Helper for printer assignment select
+  const isKotPrinterFound = !settings.kotPrinter || osPrinters.some(p => p.name === settings.kotPrinter);
+  const isBillPrinterFound = !settings.billPrinter || osPrinters.some(p => p.name === settings.billPrinter);
 
   return (
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6 w-full text-left">
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6 w-full text-left font-sans">
       
-      {/* Title & Banner */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div className="flex flex-col gap-1">
-          <h2 className="text-xl font-serif font-bold text-stone-900 uppercase tracking-wider text-left flex items-center gap-2">
-            <Printer className="w-5 h-5 text-[#C67C4E]" />
-            Thermal Printing Configuration
-          </h2>
-          <p className="text-xs text-stone-500 font-sans">
-            Configure receipt and KOT printer parameters, paper roll width, auto-cut settings, and monitor print queues.
-          </p>
+      {/* Header Banner */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-5 border border-stone-200 rounded-2xl shadow-2xs">
+        <div className="flex items-center gap-3">
+          <div className="p-3 bg-stone-900 text-[#d4af37] rounded-xl shadow-xs">
+            <Printer className="w-6 h-6" />
+          </div>
+          <div>
+            <h2 className="text-lg font-serif font-bold text-stone-900 uppercase tracking-wider flex items-center gap-2">
+              PRINTING & RECEIPT DESIGNER
+              <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-amber-50 text-amber-800 border border-amber-200 uppercase">
+                Direct Thermal Engine
+              </span>
+            </h2>
+            <p className="text-xs text-stone-500 font-sans mt-0.5">
+              Configure print modes, native OS printer assignments, copy counts, and live thermal format layouts for Bill & KOT.
+            </p>
+          </div>
         </div>
+
         <div className="flex items-center gap-2">
+          {isDirty && (
+            <span className="text-xs font-bold text-amber-700 bg-amber-50 border border-amber-200 px-3 py-1.5 rounded-xl flex items-center gap-1.5 animate-pulse">
+              <AlertTriangle className="w-3.5 h-3.5" />
+              Unsaved Changes
+            </span>
+          )}
           <button
             type="button"
-            onClick={handleManualRetry}
-            disabled={isProcessing}
-            className={`px-4 py-2 bg-stone-900 hover:bg-stone-800 disabled:bg-stone-300 text-white font-bold text-[10px] uppercase tracking-wider rounded-xl transition-all flex items-center gap-2 cursor-pointer`}
+            onClick={handleResetToDefaults}
+            className="px-3.5 py-2 bg-stone-100 hover:bg-stone-200 text-stone-700 font-bold text-xs rounded-xl transition-all flex items-center gap-1.5 cursor-pointer border border-stone-250"
           >
-            <RefreshCw className={`w-3.5 h-3.5 ${isProcessing ? "animate-spin" : ""}`} />
-            <span>{isProcessing ? "Processing..." : "Flush / Process Queue"}</span>
+            <RotateCcw className="w-3.5 h-3.5" />
+            <span>Reset Defaults</span>
           </button>
           <button
             type="button"
-            onClick={handleClearQueue}
-            className="px-4 py-2 bg-stone-50 hover:bg-stone-100 border border-stone-200 text-stone-700 font-semibold text-[10px] uppercase tracking-wider rounded-xl transition-all flex items-center gap-2 cursor-pointer"
+            onClick={handleSave}
+            className="px-5 py-2 bg-stone-900 hover:bg-stone-800 text-white font-bold text-xs uppercase tracking-wider rounded-xl transition-all flex items-center gap-2 cursor-pointer shadow-sm"
           >
-            <Trash2 className="w-3.5 h-3.5 text-stone-500" />
-            <span>Purge Queue</span>
+            {saveSuccess ? <CheckCircle2 className="w-4 h-4 text-emerald-400" /> : <Save className="w-4 h-4 text-[#d4af37]" />}
+            <span>{saveSuccess ? "Saved!" : "Save Changes"}</span>
           </button>
         </div>
       </div>
 
-      {/* Grid: Console Dashboard */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        
-        {/* Left column: Status & Settings Panel */}
-        <div className="lg:col-span-8 space-y-6">
+      {/* Test Notice Banner */}
+      {testNotice && (
+        <div className={`p-4 rounded-xl border flex items-center gap-3 text-xs font-bold ${
+          testNotice.type === "success" ? "bg-emerald-50 text-emerald-800 border-emerald-200" :
+          testNotice.type === "error" ? "bg-red-50 text-red-800 border-red-200" :
+          "bg-blue-50 text-blue-800 border-blue-200"
+        }`}>
+          <Sparkles className="w-4 h-4 shrink-0" />
+          <span>{testNotice.message}</span>
+        </div>
+      )}
+
+      {/* Tab Navigation */}
+      <div className="flex border-b border-stone-200 gap-1 bg-stone-100/60 p-1 rounded-2xl border">
+        <button
+          type="button"
+          onClick={() => setActiveTab("assignment")}
+          className={`flex-1 py-3 px-4 rounded-xl text-xs font-bold uppercase tracking-wider transition-all flex items-center justify-center gap-2 cursor-pointer ${
+            activeTab === "assignment"
+              ? "bg-stone-900 text-white shadow-xs"
+              : "text-stone-600 hover:text-stone-900 hover:bg-stone-200/50"
+          }`}
+        >
+          <Sliders className="w-4 h-4 text-[#d4af37]" />
+          <span>Printer Assignment & Mode</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab("billFormat")}
+          className={`flex-1 py-3 px-4 rounded-xl text-xs font-bold uppercase tracking-wider transition-all flex items-center justify-center gap-2 cursor-pointer ${
+            activeTab === "billFormat"
+              ? "bg-stone-900 text-white shadow-xs"
+              : "text-stone-600 hover:text-stone-900 hover:bg-stone-200/50"
+          }`}
+        >
+          <FileText className="w-4 h-4 text-[#d4af37]" />
+          <span>Bill Format Designer</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab("kotFormat")}
+          className={`flex-1 py-3 px-4 rounded-xl text-xs font-bold uppercase tracking-wider transition-all flex items-center justify-center gap-2 cursor-pointer ${
+            activeTab === "kotFormat"
+              ? "bg-stone-900 text-white shadow-xs"
+              : "text-stone-600 hover:text-stone-900 hover:bg-stone-200/50"
+          }`}
+        >
+          <Flame className="w-4 h-4 text-[#d4af37]" />
+          <span>KOT Format Designer</span>
+        </button>
+      </div>
+
+      {/* ============================================================ */}
+      {/* TAB 1: PRINTER ASSIGNMENT & PRINT MODE */}
+      {/* ============================================================ */}
+      {activeTab === "assignment" && (
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
           
-          {/* Connection Status Panel */}
-          <div className="bg-white border border-stone-200 rounded-2xl p-5 shadow-2xs">
-            <h3 className="text-2xs font-mono font-bold text-stone-400 uppercase tracking-widest mb-3 flex items-center gap-1">
-              <Activity className="w-3.5 h-3.5 text-stone-400" />
-              SYSTEM COMPONENT TELEMETRY
-            </h3>
+          <div className="lg:col-span-8 space-y-6">
             
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-stone-50 p-4 border border-stone-200 rounded-xl">
-              <div className="flex items-center gap-3">
-                <span className="p-2.5 rounded-xl border bg-green-50 border-green-200 text-green-600">
-                  <Printer className="w-5 h-5" />
-                </span>
+            {/* Print Mode Selector Card */}
+            <div className="bg-white border border-stone-200 rounded-2xl p-6 shadow-2xs space-y-4">
+              <div className="border-b border-stone-150 pb-3">
+                <h3 className="text-sm font-serif font-bold text-stone-900 uppercase tracking-wide flex items-center gap-2">
+                  <Layers className="w-4 h-4 text-[#d4af37]" />
+                  PRINT ON BILL FINALISE (PRINT MODE)
+                </h3>
+                <p className="text-xs text-stone-500">
+                  Select which receipt documents automatically execute upon finalizing a POS bill.
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                {[
+                  { mode: "BOTH", label: "BILL + KOT", desc: "Prints KOT first, then Customer Bill in 1-click." },
+                  { mode: "BILL_ONLY", label: "BILL ONLY", desc: "Prints Customer Bill only upon bill finalisation." },
+                  { mode: "KOT_ONLY", label: "KOT ONLY", desc: "Prints KOT only upon bill finalisation." },
+                ].map(item => (
+                  <button
+                    key={item.mode}
+                    type="button"
+                    onClick={() => setSettings(prev => ({ ...prev, printMode: item.mode as PrintMode }))}
+                    className={`p-4 rounded-xl border text-left transition-all cursor-pointer ${
+                      (settings.printMode || "BOTH") === item.mode
+                        ? "bg-stone-900 text-white border-stone-900 shadow-sm"
+                        : "bg-stone-50 hover:bg-stone-100 text-stone-800 border-stone-200"
+                    }`}
+                  >
+                    <div className="font-extrabold text-xs uppercase tracking-wider flex items-center justify-between mb-1">
+                      <span>{item.label}</span>
+                      {(settings.printMode || "BOTH") === item.mode && <CheckCircle2 className="w-4 h-4 text-[#d4af37]" />}
+                    </div>
+                    <p className={`text-[11px] leading-tight ${ (settings.printMode || "BOTH") === item.mode ? "text-stone-300" : "text-stone-500" }`}>
+                      {item.desc}
+                    </p>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Hardware Assignment Card */}
+            <div className="bg-white border border-stone-200 rounded-2xl p-6 shadow-2xs space-y-6">
+              <div className="flex items-center justify-between border-b border-stone-150 pb-3">
                 <div>
-                  <span className="text-[10px] font-mono font-bold text-stone-400 uppercase tracking-wider leading-none block mb-1">
-                    Thermal Print Engine
-                  </span>
-                  <span className="text-sm font-bold text-stone-850 block leading-tight">
-                    Native Browser & System Print Dialog Ready
-                  </span>
+                  <h3 className="text-sm font-serif font-bold text-stone-900 uppercase tracking-wide flex items-center gap-2">
+                    <Printer className="w-4 h-4 text-[#d4af37]" />
+                    OS PRINTER ASSIGNMENT & COPIES
+                  </h3>
+                  <p className="text-xs text-stone-500">
+                    Assign installed OS thermal printers and copy counts.
+                  </p>
                 </div>
-              </div>
-              
-              <div className="flex items-center gap-2">
-                <span className="text-[10px] font-mono font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-lg">
-                  READY
-                </span>
-              </div>
-            </div>
-          </div>
-
-          {/* Master Printer Configuration panel */}
-          <div className="bg-white border border-stone-200 rounded-2xl p-6 shadow-2xs space-y-6">
-            <div className="border-b border-stone-150 pb-4">
-              <h3 className="text-sm font-serif font-bold text-stone-900 uppercase tracking-wide">
-                Hardware Configuration & Directives
-              </h3>
-              <p className="text-[11px] text-stone-500 font-sans">
-                Fine-tune hardware commands, roll widths, copy count, and auto-dispatch logic.
-              </p>
-            </div>
-
-            {/* Form fields */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              
-              <div className="space-y-1">
-                <label className="text-[9px] font-mono font-extrabold text-stone-450 uppercase tracking-wider block">
-                  PHYSICAL THERMAL PRINTER NAME / PROFILE
-                </label>
-                <input
-                  type="text"
-                  value={pSettings.printerName}
-                  onChange={(e) => setPSettings({ ...pSettings, printerName: e.target.value })}
-                  className="w-full bg-[#FAF6F0]/60 border border-stone-200 px-3.5 py-2.5 text-xs rounded-xl focus:outline-none focus:border-[#C67C4E] font-sans text-stone-900 font-bold"
-                  placeholder="e.g. EPSON TM-T82X, POS-80"
-                />
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-[9px] font-mono font-extrabold text-stone-450 uppercase tracking-wider block">
-                  PAPER ROLL DIAMETER/WIDTH
-                </label>
-                <select
-                  value={pSettings.paperWidth}
-                  onChange={(e) => setPSettings({ ...pSettings, paperWidth: e.target.value as any })}
-                  className="w-full bg-[#FAF6F0]/60 border border-stone-200 px-3.5 py-2.5 text-xs rounded-xl focus:outline-none focus:border-[#C67C4E] font-sans text-stone-900 font-bold"
-                >
-                  <option value="80mm">80mm Professional Thermal Roll (Standard)</option>
-                  <option value="58mm">58mm Compact Handheld Roll (Mobile)</option>
-                </select>
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-[9px] font-mono font-extrabold text-stone-450 uppercase tracking-wider block">
-                  PRINT COPIES (MULTIPLIER)
-                </label>
-                <input
-                  type="number"
-                  min={1}
-                  max={5}
-                  value={pSettings.copies}
-                  onChange={(e) => setPSettings({ ...pSettings, copies: Math.max(1, Number(e.target.value)) })}
-                  className="w-full bg-[#FAF6F0]/60 border border-stone-200 px-3.5 py-2.5 text-xs rounded-xl focus:outline-none focus:border-[#C67C4E] font-sans text-stone-900 font-bold"
-                />
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-[9px] font-mono font-extrabold text-stone-450 uppercase tracking-wider block">
-                  AUTO CUT DIRECTIVE
-                </label>
-                <div className="flex items-center gap-3 bg-[#FAF6F0]/30 border border-stone-200 px-3 py-2 rounded-xl h-[42px]">
-                  <input
-                    type="checkbox"
-                    id="autoCutCheckbox"
-                    checked={pSettings.autoCut}
-                    onChange={(e) => setPSettings({ ...pSettings, autoCut: e.target.checked })}
-                    className="w-4 h-4 accent-[#C67C4E]"
-                  />
-                  <label htmlFor="autoCutCheckbox" className="text-xs text-stone-700 font-bold select-none">
-                    Trigger Paper Cut Command
-                  </label>
-                </div>
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-[9px] font-mono font-extrabold text-stone-450 uppercase tracking-wider block">
-                  PAPER CUT MODALITY
-                </label>
-                <select
-                  value={pSettings.cutType}
-                  disabled={!pSettings.autoCut}
-                  onChange={(e) => setPSettings({ ...pSettings, cutType: e.target.value as any })}
-                  className="w-full bg-[#FAF6F0]/60 border border-stone-200 px-3.5 py-2.5 text-xs rounded-xl focus:outline-none focus:border-[#C67C4E] font-sans text-stone-900 font-bold disabled:bg-stone-100 disabled:text-stone-400"
-                >
-                  <option value="full">Full Clean Cut (Separate sheets entirely)</option>
-                  <option value="partial">Partial Cut (Maintains small connecting point)</option>
-                </select>
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-[9px] font-mono font-extrabold text-stone-450 uppercase tracking-wider block">
-                  BILL FEED BLANK LINES (PRE-CUT)
-                </label>
-                <input
-                  type="number"
-                  min={0}
-                  max={12}
-                  value={pSettings.feedBeforeCutBill}
-                  onChange={(e) => setPSettings({ ...pSettings, feedBeforeCutBill: Number(e.target.value) })}
-                  className="w-full bg-[#FAF6F0]/60 border border-stone-200 px-3.5 py-2.5 text-xs rounded-xl focus:outline-none focus:border-[#C67C4E] font-sans text-stone-900 font-bold"
-                />
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-[9px] font-mono font-extrabold text-stone-450 uppercase tracking-wider block">
-                  KOT FEED BLANK LINES (PRE-CUT)
-                </label>
-                <input
-                  type="number"
-                  min={0}
-                  max={12}
-                  value={pSettings.feedBeforeCutKOT}
-                  onChange={(e) => setPSettings({ ...pSettings, feedBeforeCutKOT: Number(e.target.value) })}
-                  className="w-full bg-[#FAF6F0]/60 border border-stone-200 px-3.5 py-2.5 text-xs rounded-xl focus:outline-none focus:border-[#C67C4E] font-sans text-stone-900 font-bold"
-                />
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-[9px] font-mono font-extrabold text-stone-450 uppercase tracking-wider block">
-                  CUSTOMER BILL TRIGGER
-                </label>
-                <div className="flex items-center gap-3 bg-[#FAF6F0]/30 border border-stone-200 px-3 py-2 rounded-xl h-[42px]">
-                  <input
-                    type="checkbox"
-                    id="autoPrintBillCheckbox"
-                    checked={pSettings.autoPrintBill}
-                    onChange={(e) => setPSettings({ ...pSettings, autoPrintBill: e.target.checked })}
-                    className="w-4 h-4 accent-[#C67C4E]"
-                  />
-                  <label htmlFor="autoPrintBillCheckbox" className="text-xs text-stone-700 font-bold select-none">
-                    Spool Bill on Paid Checkout
-                  </label>
-                </div>
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-[9px] font-mono font-extrabold text-stone-450 uppercase tracking-wider block">
-                  KITCHEN ORDER TICKET TRIGGER
-                </label>
-                <div className="flex items-center gap-3 bg-[#FAF6F0]/30 border border-stone-200 px-3 py-2 rounded-xl h-[42px]">
-                  <input
-                    type="checkbox"
-                    id="autoPrintKOTCheckbox"
-                    checked={pSettings.autoPrintKOT}
-                    onChange={(e) => setPSettings({ ...pSettings, autoPrintKOT: e.target.checked })}
-                    className="w-4 h-4 accent-[#C67C4E]"
-                  />
-                  <label htmlFor="autoPrintKOTCheckbox" className="text-xs text-stone-700 font-bold select-none">
-                    Spool KOT on Kitchen Dispatch
-                  </label>
-                </div>
-              </div>
-
-            </div>
-
-            {/* Action panel footer */}
-            <div className="pt-4 border-t border-stone-150 flex flex-wrap items-center justify-between gap-3">
-              <div className="flex gap-2">
                 <button
                   type="button"
-                  onClick={handleSaveSettings}
-                  className="px-5 py-3 bg-[#C67C4E] hover:bg-[#aa663a] text-white font-bold text-xs tracking-wider uppercase rounded-xl transition-all cursor-pointer shadow-2xs flex items-center gap-2"
+                  onClick={fetchPrinters}
+                  disabled={isLoadingPrinters}
+                  className="px-3 py-1.5 bg-stone-100 hover:bg-stone-200 text-stone-700 text-xs font-bold rounded-lg transition-all flex items-center gap-1.5 cursor-pointer border border-stone-250"
                 >
-                  <Save className="w-4 h-4" />
-                  <span>Save Printer Parameters</span>
+                  <RefreshCw className={`w-3.5 h-3.5 ${isLoadingPrinters ? "animate-spin" : ""}`} />
+                  <span>Refresh List</span>
                 </button>
+              </div>
+
+              {/* Form Grid */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                 
+                {/* KOT Printer & Copies */}
+                <div className="space-y-4 p-4 bg-stone-50/80 rounded-xl border border-stone-200">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-extrabold text-stone-900 uppercase tracking-wider flex items-center gap-1.5">
+                      <Flame className="w-4 h-4 text-amber-600" />
+                      KOT PRINTER
+                    </span>
+                    {!isKotPrinterFound && (
+                      <span className="text-[10px] font-bold text-red-600 bg-red-50 border border-red-200 px-2 py-0.5 rounded">
+                        ⚠️ Printer Not Found
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-mono font-bold text-stone-500 uppercase block">Select Device</label>
+                    <select
+                      value={settings.kotPrinter || ""}
+                      onChange={(e) => setSettings(prev => ({ ...prev, kotPrinter: e.target.value }))}
+                      className="w-full bg-white border border-stone-300 px-3 py-2 text-xs rounded-xl focus:outline-none focus:border-stone-800 font-sans font-bold"
+                    >
+                      <option value="">Default OS Printer</option>
+                      {osPrinters.map(p => (
+                        <option key={p.name} value={p.name}>
+                          {p.name} {p.isDefault ? "(OS Default)" : ""}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-mono font-bold text-stone-500 uppercase block">KOT Copies Multiplier</label>
+                    <select
+                      value={settings.kotCopies || 1}
+                      onChange={(e) => setSettings(prev => ({ ...prev, kotCopies: Number(e.target.value) }))}
+                      className="w-full bg-white border border-stone-300 px-3 py-2 text-xs rounded-xl focus:outline-none focus:border-stone-800 font-sans font-bold"
+                    >
+                      {[1, 2, 3, 4, 5].map(num => (
+                        <option key={num} value={num}>{num} Copy {num > 1 ? "Copies" : ""}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                {/* Bill Printer & Copies */}
+                <div className="space-y-4 p-4 bg-stone-50/80 rounded-xl border border-stone-200">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-extrabold text-stone-900 uppercase tracking-wider flex items-center gap-1.5">
+                      <FileText className="w-4 h-4 text-stone-800" />
+                      BILL PRINTER
+                    </span>
+                    {!isBillPrinterFound && (
+                      <span className="text-[10px] font-bold text-red-600 bg-red-50 border border-red-200 px-2 py-0.5 rounded">
+                        ⚠️ Printer Not Found
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-mono font-bold text-stone-500 uppercase block">Select Device</label>
+                    <select
+                      value={settings.billPrinter || ""}
+                      onChange={(e) => setSettings(prev => ({ ...prev, billPrinter: e.target.value }))}
+                      className="w-full bg-white border border-stone-300 px-3 py-2 text-xs rounded-xl focus:outline-none focus:border-stone-800 font-sans font-bold"
+                    >
+                      <option value="">Default OS Printer</option>
+                      {osPrinters.map(p => (
+                        <option key={p.name} value={p.name}>
+                          {p.name} {p.isDefault ? "(OS Default)" : ""}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-mono font-bold text-stone-500 uppercase block">Bill Copies Multiplier</label>
+                    <select
+                      value={settings.billCopies || 1}
+                      onChange={(e) => setSettings(prev => ({ ...prev, billCopies: Number(e.target.value) }))}
+                      className="w-full bg-white border border-stone-300 px-3 py-2 text-xs rounded-xl focus:outline-none focus:border-stone-800 font-sans font-bold"
+                    >
+                      {[1, 2, 3, 4, 5].map(num => (
+                        <option key={num} value={num}>{num} Copy {num > 1 ? "Copies" : ""}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+              </div>
+            </div>
+
+            {/* Test Print Actions Card */}
+            <div className="bg-white border border-stone-200 rounded-2xl p-6 shadow-2xs space-y-4">
+              <div className="border-b border-stone-150 pb-3">
+                <h3 className="text-sm font-serif font-bold text-stone-900 uppercase tracking-wide flex items-center gap-2">
+                  <Activity className="w-4 h-4 text-[#d4af37]" />
+                  INSTANT HARDWARE TEST PRINT
+                </h3>
+                <p className="text-xs text-stone-500">
+                  Verify configured printers, font sizes, and paper layout silently without opening print dialogs.
+                </p>
+              </div>
+
+              <div className="flex flex-col sm:flex-row items-center gap-3">
                 <button
                   type="button"
-                  onClick={handleThermalTestPrint}
-                  className="px-5 py-3 bg-stone-900 hover:bg-stone-850 text-white font-bold text-xs tracking-wider uppercase rounded-xl transition-all cursor-pointer shadow-2xs flex items-center gap-2"
+                  onClick={handleTestKOTPrint}
+                  className="w-full py-3 px-4 bg-amber-700 hover:bg-amber-800 text-white font-bold text-xs uppercase tracking-wider rounded-xl transition-all flex items-center justify-center gap-2 cursor-pointer shadow-xs"
                 >
-                  <Printer className="w-4 h-4" />
-                  <span>Print Test Slip</span>
+                  <Flame className="w-4 h-4" />
+                  <span>TEST KOT PRINT</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleTestBillPrint}
+                  className="w-full py-3 px-4 bg-stone-900 hover:bg-stone-850 text-white font-bold text-xs uppercase tracking-wider rounded-xl transition-all flex items-center justify-center gap-2 cursor-pointer shadow-xs"
+                >
+                  <FileText className="w-4 h-4" />
+                  <span>TEST BILL PRINT</span>
                 </button>
               </div>
-
-              {saveSuccess && (
-                <span className="text-[10px] font-mono font-bold text-green-600 bg-green-50 px-3 py-1 rounded-lg border border-green-200">
-                  ✔ System settings saved successfully!
-                </span>
-              )}
             </div>
 
           </div>
 
-        </div>
-
-        {/* Right column: Dispatch Stats Telemetry */}
-        <div className="lg:col-span-4 flex flex-col gap-4">
-          <div className="bg-stone-900 text-stone-100 border border-stone-800 rounded-2xl p-5 space-y-4">
-            <div className="flex items-center gap-2 border-b border-stone-800 pb-2.5">
-              <Sliders className="w-4 h-4 text-[#e2935c]" />
-              <h4 className="text-2xs font-mono font-bold uppercase tracking-wider text-stone-300">
-                DISPATCH ENGINE TELEMETRY
+          {/* Right Status Sidebar */}
+          <div className="lg:col-span-4 space-y-6">
+            <div className="bg-stone-900 text-stone-200 border border-stone-800 rounded-2xl p-5 shadow-sm space-y-4 text-left">
+              <h4 className="text-xs font-mono font-bold text-[#d4af37] uppercase tracking-wider flex items-center gap-2">
+                <UtensilsCrossed className="w-4 h-4" />
+                ACTIVE CONFIG SUMMARY
               </h4>
-            </div>
-            
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <span className="text-[9px] font-mono text-stone-500 uppercase block leading-none mb-1">
-                  Queue Load
-                </span>
-                <span className="text-lg font-bold font-mono text-[#e2935c]">
-                  {queue.filter(j => j.status === "Pending" || j.status === "Retrying").length} Spools
-                </span>
-              </div>
-              <div>
-                <span className="text-[9px] font-mono text-stone-500 uppercase block leading-none mb-1">
-                  Total Spooled
-                </span>
-                <span className="text-lg font-bold font-mono text-stone-100">
-                  {queue.length} jobs
-                </span>
-              </div>
-              <div>
-                <span className="text-[9px] font-mono text-stone-500 uppercase block leading-none mb-1">
-                  Print Success
-                </span>
-                <span className="text-lg font-bold font-mono text-green-400">
-                  {logs.filter(l => l.status === "Success").length} slips
-                </span>
-              </div>
-              <div>
-                <span className="text-[9px] font-mono text-stone-500 uppercase block leading-none mb-1">
-                  Spool Failures
-                </span>
-                <span className="text-lg font-bold font-mono text-red-400">
-                  {logs.filter(l => l.status === "Failed").length} errors
-                </span>
+              <div className="space-y-2 text-xs font-mono">
+                <div className="flex justify-between border-b border-stone-800 pb-1.5">
+                  <span className="text-stone-400">Print Mode:</span>
+                  <span className="font-bold text-white">{settings.printMode || "BOTH"}</span>
+                </div>
+                <div className="flex justify-between border-b border-stone-800 pb-1.5">
+                  <span className="text-stone-400">KOT Printer:</span>
+                  <span className="font-bold text-white truncate max-w-[140px]">{settings.kotPrinter || "Default OS"}</span>
+                </div>
+                <div className="flex justify-between border-b border-stone-800 pb-1.5">
+                  <span className="text-stone-400">KOT Copies:</span>
+                  <span className="font-bold text-white">{settings.kotCopies || 1}</span>
+                </div>
+                <div className="flex justify-between border-b border-stone-800 pb-1.5">
+                  <span className="text-stone-400">Bill Printer:</span>
+                  <span className="font-bold text-white truncate max-w-[140px]">{settings.billPrinter || "Default OS"}</span>
+                </div>
+                <div className="flex justify-between border-b border-stone-800 pb-1.5">
+                  <span className="text-stone-400">Bill Copies:</span>
+                  <span className="font-bold text-white">{settings.billCopies || 1}</span>
+                </div>
+                <div className="flex justify-between border-b border-stone-800 pb-1.5">
+                  <span className="text-stone-400">Bill Paper:</span>
+                  <span className="font-bold text-white">{currentBillFormat.paperWidth}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-stone-400">KOT Paper:</span>
+                  <span className="font-bold text-white">{currentKotFormat.paperWidth}</span>
+                </div>
               </div>
             </div>
-          </div>
 
-          <div className="bg-white border border-stone-200 rounded-2xl p-4 shadow-2xs space-y-3">
-            <h4 className="text-2xs font-mono font-bold text-stone-400 uppercase tracking-widest">
-              HARDWARE INTEGRATION TIPS
-            </h4>
-            <ul className="text-[11px] text-stone-600 font-sans space-y-2 leading-relaxed">
-              <li className="flex items-start gap-1.5">
-                <span className="text-[#C67C4E] font-bold">•</span>
-                <span><strong>Sequential Printing:</strong> WebRajya automatically enforces separate queues. Bill and KOT always print sequentially with a hardware feed and cut between them to prevent overlap.</span>
-              </li>
-              <li className="flex items-start gap-1.5">
-                <span className="text-[#C67C4E] font-bold">•</span>
-                <span><strong>Auto Cuts:</strong> Standard 80mm printers support native ESC/POS cuts. For 58mm portable devices, disable auto-cut or select partial cut to save paper wear.</span>
-              </li>
-              <li className="flex items-start gap-1.5">
-                <span className="text-[#C67C4E] font-bold">•</span>
-                <span><strong>Browser Print Integration:</strong> Thermal receipts and KOTs format seamlessly in standard 80mm and 58mm layouts for any connected thermal or system printer.</span>
-              </li>
-            </ul>
-          </div>
-        </div>
-
-      </div>
-
-      {/* SECTION 2: Active Dispatch Queue Spooler */}
-      <div className="bg-white border border-stone-200 rounded-2xl p-5 shadow-2xs space-y-4">
-        <div className="flex items-center justify-between border-b border-stone-150 pb-3">
-          <div className="flex items-center gap-2">
-            <span className="p-1.5 bg-yellow-50 text-yellow-600 rounded-lg border border-yellow-100 flex items-center justify-center">
-              <Terminal className="w-4 h-4" />
-            </span>
-            <h3 className="text-sm font-serif font-bold text-stone-900 uppercase tracking-wide">
-              Active Dispatch Queue Spooler
-            </h3>
-          </div>
-          <span className="text-[10px] font-mono text-stone-400 bg-stone-50 border border-stone-200 px-2 py-0.5 rounded-lg">
-            {queue.length} Active Tasks
-          </span>
-        </div>
-
-        {queue.length === 0 ? (
-          <div className="py-8 flex flex-col items-center justify-center text-center space-y-2 border border-dashed border-stone-200 rounded-xl">
-            <CheckCircle2 className="w-8 h-8 text-stone-300" />
-            <p className="text-xs text-stone-500 font-sans italic">All dispatch queues are clear. Thermal buffers are empty.</p>
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="border-b border-stone-100 bg-stone-50 text-[10px] font-mono font-bold text-stone-450 uppercase">
-                  <th className="p-3">Job ID</th>
-                  <th className="p-3">Order Reference</th>
-                  <th className="p-3">Slip Type</th>
-                  <th className="p-3">Destination Printer</th>
-                  <th className="p-3">Culinary Items</th>
-                  <th className="p-3">Telemetry Status</th>
-                  <th className="p-3">Created</th>
-                  <th className="p-3 text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {queue.map((job) => {
-                  return (
-                    <tr key={job.id} className="border-b border-stone-100 hover:bg-stone-50/50 text-xs font-sans text-stone-700">
-                      <td className="p-3 font-mono text-[10px] text-stone-400 font-bold">{job.id.substring(0, 14)}</td>
-                      <td className="p-3 font-mono font-bold text-stone-900">{job.orderId}</td>
-                      <td className="p-3">
-                        <span className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold ${
-                          job.type === "Bill" 
-                            ? "bg-emerald-50 text-emerald-700 border border-emerald-100" 
-                            : job.type === "Add-On KOT"
-                            ? "bg-purple-50 text-purple-700 border border-purple-100"
-                            : "bg-blue-50 text-blue-700 border border-blue-100"
-                        }`}>
-                          {job.type}
+            {/* Detected Printers List */}
+            <div className="bg-white border border-stone-200 rounded-2xl p-5 shadow-2xs space-y-3">
+              <h4 className="text-xs font-mono font-bold text-stone-700 uppercase tracking-wider flex items-center gap-1.5">
+                <Printer className="w-3.5 h-3.5 text-stone-500" />
+                DETECTED OS PRINTERS ({osPrinters.length})
+              </h4>
+              <div className="space-y-1.5 max-h-[300px] overflow-y-auto pr-1">
+                {osPrinters.length === 0 ? (
+                  <p className="text-xs text-stone-400 italic">No installed printers detected by OS spooler.</p>
+                ) : (
+                  osPrinters.map(p => (
+                    <div key={p.name} className="p-2 bg-stone-50 rounded-lg border border-stone-200/60 text-xs flex items-center justify-between">
+                      <span className="font-bold text-stone-800 truncate">{p.name}</span>
+                      {p.isDefault && (
+                        <span className="text-[9px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded shrink-0">
+                          DEFAULT
                         </span>
-                      </td>
-                      <td className="p-3">
-                        <div className="flex items-center gap-1">
-                          <Printer className="w-3 h-3 text-stone-400" />
-                          <span className="font-semibold">{pSettings.printerName}</span>
-                        </div>
-                      </td>
-                      <td className="p-3 max-w-[200px] truncate">
-                        {job.items.map(i => `${i.name} ×${i.quantity}`).join(", ")}
-                      </td>
-                      <td className="p-3">
-                        <div className="flex flex-col gap-1">
-                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-mono font-bold w-fit ${
-                            job.status === "Printed" 
-                              ? "bg-green-500/10 text-green-700" 
-                              : job.status === "Printing"
-                              ? "bg-blue-500/10 text-blue-700 animate-pulse"
-                              : job.status === "Retrying"
-                              ? "bg-amber-500/10 text-amber-700"
-                              : job.status === "Failed"
-                              ? "bg-red-500/10 text-red-700"
-                              : "bg-stone-100 text-stone-500"
-                          }`}>
-                            <span className={`h-1.5 w-1.5 rounded-full ${
-                              job.status === "Printed" ? "bg-green-500" :
-                              job.status === "Printing" ? "bg-blue-500" :
-                              job.status === "Retrying" ? "bg-amber-500" :
-                              job.status === "Failed" ? "bg-red-500" : "bg-stone-400"
-                            }`} />
-                            {job.status.toUpperCase()}
-                          </span>
-                          {job.errorMessage && (
-                            <span className="text-[9px] font-mono text-red-500 block leading-tight max-w-[150px] truncate" title={job.errorMessage}>
-                              {job.errorMessage}
-                            </span>
-                          )}
-                        </div>
-                      </td>
-                      <td className="p-3 font-mono text-[10px] text-stone-400">
-                        {new Date(job.createdAt).toLocaleTimeString()}
-                      </td>
-                      <td className="p-3 text-right">
-                        <div className="flex justify-end gap-1.5">
-                          {(job.status === "Failed" || job.status === "Retrying") && (
-                            <button
-                              type="button"
-                              onClick={async () => {
-                                job.status = "Pending";
-                                job.retryCount = 0;
-                                PrintQueueManager.saveQueue([...queue]);
-                                await PrintQueueManager.processQueue();
-                              }}
-                              className="px-2 py-1 bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 rounded font-bold uppercase text-[9px] cursor-pointer"
-                            >
-                              Retry Now
-                            </button>
-                          )}
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const next = queue.filter(q => q.id !== job.id);
-                              PrintQueueManager.saveQueue(next);
-                            }}
-                            className="p-1 bg-stone-50 hover:bg-stone-100 border border-stone-200 text-stone-450 rounded cursor-pointer"
-                            title="Delete Spool"
-                          >
-                            <Trash2 className="w-3 h-3" />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+                      )}
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
           </div>
-        )}
-      </div>
 
-      {/* SECTION 3: Spool output transaction ledger logs */}
-      <div className="bg-white border border-stone-200 rounded-2xl p-5 shadow-2xs space-y-4">
-        <div className="flex items-center justify-between border-b border-stone-150 pb-3">
-          <div className="flex items-center gap-2">
-            <span className="p-1.5 bg-stone-100 text-stone-600 rounded-lg border border-stone-250/30 flex items-center justify-center">
-              <FileText className="w-4 h-4" />
-            </span>
-            <h3 className="text-sm font-serif font-bold text-stone-900 uppercase tracking-wide">
-              Thermal Output Logs Ledger
-            </h3>
-          </div>
-          <button
-            type="button"
-            onClick={handlePurgeLogs}
-            className="px-3 py-1 bg-stone-50 hover:bg-stone-100 border border-stone-200 text-stone-600 font-bold text-[9px] uppercase tracking-wider rounded-lg transition-all cursor-pointer"
-          >
-            Clear Log History
-          </button>
         </div>
+      )}
 
-        {logs.length === 0 ? (
-          <div className="py-8 text-center text-xs text-stone-400 font-sans italic">
-            No printer transaction log records saved in this station.
+      {/* ============================================================ */}
+      {/* TAB 2: BILL FORMAT DESIGNER */}
+      {/* ============================================================ */}
+      {activeTab === "billFormat" && (
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+          
+          {/* Controls Panel */}
+          <div className="lg:col-span-7 space-y-6">
+            
+            {/* Paper Width & Basic Options */}
+            <div className="bg-white border border-stone-200 rounded-2xl p-6 shadow-2xs space-y-4">
+              <h3 className="text-xs font-mono font-bold text-stone-500 uppercase tracking-wider">PAPER & DISPLAY REGION</h3>
+              
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={() => updateBillFormat({ paperWidth: "80mm" })}
+                  className={`p-3 rounded-xl border text-xs font-bold uppercase transition-all ${
+                    currentBillFormat.paperWidth === "80mm" ? "bg-stone-900 text-white border-stone-900" : "bg-stone-50 text-stone-700 border-stone-250"
+                  }`}
+                >
+                  80mm Standard Thermal Roll
+                </button>
+                <button
+                  type="button"
+                  onClick={() => updateBillFormat({ paperWidth: "58mm" })}
+                  className={`p-3 rounded-xl border text-xs font-bold uppercase transition-all ${
+                    currentBillFormat.paperWidth === "58mm" ? "bg-stone-900 text-white border-stone-900" : "bg-stone-50 text-stone-700 border-stone-250"
+                  }`}
+                >
+                  58mm Compact Handheld Roll
+                </button>
+              </div>
+            </div>
+
+            {/* Checkbox Sections Grid */}
+            <div className="bg-white border border-stone-200 rounded-2xl p-6 shadow-2xs space-y-6">
+              
+              {/* Header Checkboxes */}
+              <div className="space-y-2 border-b border-stone-150 pb-4">
+                <span className="text-xs font-mono font-bold text-stone-900 uppercase tracking-wider block">HEADER FIELDS</span>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs">
+                  {[
+                    { key: "showRestaurantName", label: "Restaurant Name" },
+                    { key: "showAddress", label: "Address" },
+                    { key: "showPhone", label: "Phone" },
+                    { key: "showGstin", label: "GSTIN" },
+                    { key: "showEmail", label: "Email" },
+                    { key: "showWebsite", label: "Website" },
+                  ].map(f => (
+                    <label key={f.key} className="flex items-center gap-2 cursor-pointer font-bold text-stone-700">
+                      <input
+                        type="checkbox"
+                        checked={(currentBillFormat as any)[f.key]}
+                        onChange={(e) => updateBillFormat({ [f.key]: e.target.checked })}
+                        className="w-4 h-4 accent-stone-900"
+                      />
+                      <span>{f.label}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              {/* Order Information Checkboxes */}
+              <div className="space-y-2 border-b border-stone-150 pb-4">
+                <span className="text-xs font-mono font-bold text-stone-900 uppercase tracking-wider block">ORDER INFORMATION</span>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs">
+                  {[
+                    { key: "showBillNumber", label: "Bill Number" },
+                    { key: "showDate", label: "Date" },
+                    { key: "showTime", label: "Time" },
+                    { key: "showTableNumber", label: "Table Number" },
+                    { key: "showOrderNumber", label: "Order Number" },
+                    { key: "showCashierName", label: "Cashier Name" },
+                  ].map(f => (
+                    <label key={f.key} className="flex items-center gap-2 cursor-pointer font-bold text-stone-700">
+                      <input
+                        type="checkbox"
+                        checked={(currentBillFormat as any)[f.key]}
+                        onChange={(e) => updateBillFormat({ [f.key]: e.target.checked })}
+                        className="w-4 h-4 accent-stone-900"
+                      />
+                      <span>{f.label}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              {/* Customer Information Checkboxes */}
+              <div className="space-y-2 border-b border-stone-150 pb-4">
+                <span className="text-xs font-mono font-bold text-stone-900 uppercase tracking-wider block">CUSTOMER INFORMATION</span>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs">
+                  {[
+                    { key: "showCustomerName", label: "Customer Name" },
+                    { key: "showCustomerPhone", label: "Customer Phone" },
+                    { key: "showCustomerAddress", label: "Customer Address" },
+                  ].map(f => (
+                    <label key={f.key} className="flex items-center gap-2 cursor-pointer font-bold text-stone-700">
+                      <input
+                        type="checkbox"
+                        checked={(currentBillFormat as any)[f.key]}
+                        onChange={(e) => updateBillFormat({ [f.key]: e.target.checked })}
+                        className="w-4 h-4 accent-stone-900"
+                      />
+                      <span>{f.label}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              {/* Items & Totals */}
+              <div className="space-y-2 border-b border-stone-150 pb-4">
+                <span className="text-xs font-mono font-bold text-stone-900 uppercase tracking-wider block">ITEMS & TOTALS</span>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs">
+                  {[
+                    { key: "showItemName", label: "Item Name" },
+                    { key: "showQuantity", label: "Quantity" },
+                    { key: "showRate", label: "Rate" },
+                    { key: "showAmount", label: "Amount" },
+                    { key: "showItemSku", label: "Item SKU" },
+                    { key: "showItemNotes", label: "Item Notes" },
+                    { key: "showSubtotal", label: "Subtotal" },
+                    { key: "showDiscount", label: "Discount" },
+                    { key: "showTax", label: "Tax (GST)" },
+                    { key: "showGrandTotal", label: "Grand Total" },
+                  ].map(f => (
+                    <label key={f.key} className="flex items-center gap-2 cursor-pointer font-bold text-stone-700">
+                      <input
+                        type="checkbox"
+                        checked={(currentBillFormat as any)[f.key]}
+                        onChange={(e) => updateBillFormat({ [f.key]: e.target.checked })}
+                        className="w-4 h-4 accent-stone-900"
+                      />
+                      <span>{f.label}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              {/* Payment & Footer */}
+              <div className="space-y-2">
+                <span className="text-xs font-mono font-bold text-stone-900 uppercase tracking-wider block">PAYMENT & FOOTER</span>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs">
+                  {[
+                    { key: "showPaymentMethod", label: "Payment Method" },
+                    { key: "showThankYou", label: "Thank You Greeting" },
+                    { key: "showCustomFooter", label: "Custom Footer Text" },
+                    { key: "showPoweredBy", label: "Powered by WebRajya POS" },
+                  ].map(f => (
+                    <label key={f.key} className="flex items-center gap-2 cursor-pointer font-bold text-stone-700">
+                      <input
+                        type="checkbox"
+                        checked={(currentBillFormat as any)[f.key]}
+                        onChange={(e) => updateBillFormat({ [f.key]: e.target.checked })}
+                        className="w-4 h-4 accent-stone-900"
+                      />
+                      <span>{f.label}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+            </div>
+
+            {/* Typography & Spacing Controls */}
+            <div className="bg-white border border-stone-200 rounded-2xl p-6 shadow-2xs space-y-4">
+              <h3 className="text-xs font-mono font-bold text-stone-500 uppercase tracking-wider">TYPOGRAPHY & MARGINS</h3>
+              
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 text-xs font-bold">
+                <div>
+                  <label className="text-[10px] text-stone-500 block mb-1">Header Font Size (12-28)</label>
+                  <input
+                    type="number"
+                    min={12}
+                    max={28}
+                    value={currentBillFormat.headerFontSize}
+                    onChange={(e) => updateBillFormat({ headerFontSize: Number(e.target.value) })}
+                    className="w-full bg-stone-50 border border-stone-300 p-2 rounded-lg font-bold"
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] text-stone-500 block mb-1">Item Font Size (8-18)</label>
+                  <input
+                    type="number"
+                    min={8}
+                    max={18}
+                    value={currentBillFormat.itemFontSize}
+                    onChange={(e) => updateBillFormat({ itemFontSize: Number(e.target.value) })}
+                    className="w-full bg-stone-50 border border-stone-300 p-2 rounded-lg font-bold"
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] text-stone-500 block mb-1">Total Font Size (10-24)</label>
+                  <input
+                    type="number"
+                    min={10}
+                    max={24}
+                    value={currentBillFormat.totalFontSize}
+                    onChange={(e) => updateBillFormat({ totalFontSize: Number(e.target.value) })}
+                    className="w-full bg-stone-50 border border-stone-300 p-2 rounded-lg font-bold"
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] text-stone-500 block mb-1">Footer Font Size (8-16)</label>
+                  <input
+                    type="number"
+                    min={8}
+                    max={16}
+                    value={currentBillFormat.footerFontSize}
+                    onChange={(e) => updateBillFormat({ footerFontSize: Number(e.target.value) })}
+                    className="w-full bg-stone-50 border border-stone-300 p-2 rounded-lg font-bold"
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] text-stone-500 block mb-1">Header Alignment</label>
+                  <select
+                    value={currentBillFormat.headerAlignment}
+                    onChange={(e) => updateBillFormat({ headerAlignment: e.target.value as any })}
+                    className="w-full bg-stone-50 border border-stone-300 p-2 rounded-lg font-bold"
+                  >
+                    <option value="left">Left</option>
+                    <option value="center">Center</option>
+                    <option value="right">Right</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-[10px] text-stone-500 block mb-1">Footer Alignment</label>
+                  <select
+                    value={currentBillFormat.footerAlignment}
+                    onChange={(e) => updateBillFormat({ footerAlignment: e.target.value as any })}
+                    className="w-full bg-stone-50 border border-stone-300 p-2 rounded-lg font-bold"
+                  >
+                    <option value="left">Left</option>
+                    <option value="center">Center</option>
+                    <option value="right">Right</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
           </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="border-b border-stone-100 bg-stone-50 text-[10px] font-mono font-bold text-stone-450 uppercase">
-                  <th className="p-3">Log ID</th>
-                  <th className="p-3">Order</th>
-                  <th className="p-3">Print Type</th>
-                  <th className="p-3">Printer Spool Target</th>
-                  <th className="p-3">Printed By</th>
-                  <th className="p-3">Logged Date / Time</th>
-                  <th className="p-3">Reprint Metadata</th>
-                  <th className="p-3">Result Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {logs.map((lg) => {
-                  return (
-                    <tr key={lg.id} className="border-b border-stone-100 hover:bg-stone-50/50 text-xs font-sans text-stone-600">
-                      <td className="p-3 font-mono text-[10px] text-stone-400">{lg.id.replace("prt-log-", "").substring(0, 8)}</td>
-                      <td className="p-3 font-mono font-bold text-stone-900">{lg.orderId}</td>
-                      <td className="p-3">
-                        <span className="font-semibold text-stone-800">{lg.printType}</span>
-                      </td>
-                      <td className="p-3">
-                        <span className="font-mono text-[11px] text-stone-500">{lg.printerName}</span>
-                      </td>
-                      <td className="p-3 text-[11px] text-stone-500">{lg.printedBy}</td>
-                      <td className="p-3 font-mono text-[10px] text-stone-400">
-                        {new Date(lg.printTime).toLocaleString()}
-                      </td>
-                      <td className="p-3">
-                        {lg.reprints > 0 ? (
-                           <div className="space-y-0.5 leading-none">
-                            <span className="px-1.5 py-0.5 bg-amber-50 text-amber-700 border border-amber-100 rounded text-[9px] font-mono font-extrabold uppercase">
-                              REPRINT ×{lg.reprints}
-                            </span>
-                            {lg.originalPrintTime && (
-                              <p className="text-[8px] font-mono text-stone-400 block pt-0.5">
-                                Orig: {new Date(lg.originalPrintTime).toLocaleTimeString()}
-                              </p>
-                            )}
-                          </div>
-                        ) : (
-                          <span className="text-stone-300 font-mono text-[10px]">—</span>
-                        )}
-                      </td>
-                      <td className="p-3">
-                        <div className="flex flex-col gap-0.5">
-                          <span className={`inline-flex items-center gap-1 font-mono font-bold text-[10px] ${
-                            lg.status === "Success" ? "text-green-600" : "text-red-600"
-                          }`}>
-                            {lg.status === "Success" ? "● SUCCESS" : "● FAILED"}
-                          </span>
-                          {lg.errorMessage && (
-                            <span className="text-[9px] font-mono text-red-500 block leading-tight max-w-[120px] truncate" title={lg.errorMessage}>
-                              {lg.errorMessage}
-                            </span>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+
+          {/* Right Live Preview Panel */}
+          <div className="lg:col-span-5 space-y-4">
+            <div className="bg-stone-900 border border-stone-800 rounded-2xl p-4 shadow-sm text-left">
+              <div className="flex items-center justify-between pb-3 border-b border-stone-800 mb-4">
+                <span className="text-xs font-mono font-bold text-[#d4af37] uppercase tracking-wider flex items-center gap-1.5">
+                  <Sparkles className="w-4 h-4" />
+                  LIVE BILL PREVIEW
+                </span>
+                <span className="text-[10px] font-mono text-stone-400 bg-stone-800 px-2 py-0.5 rounded">
+                  {currentBillFormat.paperWidth}
+                </span>
+              </div>
+
+              {/* Rendered HTML Container */}
+              <div 
+                className="bg-white rounded-xl p-3 shadow-inner overflow-x-auto min-h-[450px]"
+                dangerouslySetInnerHTML={{
+                  __html: PhysicalThermalPrinter.renderConfiguredBillHTML(sampleBillOrder, settings, currentBillFormat)
+                }}
+              />
+            </div>
           </div>
-        )}
-      </div>
+
+        </div>
+      )}
+
+      {/* ============================================================ */}
+      {/* TAB 3: KOT FORMAT DESIGNER */}
+      {/* ============================================================ */}
+      {activeTab === "kotFormat" && (
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+          
+          {/* Controls Panel */}
+          <div className="lg:col-span-7 space-y-6">
+            
+            {/* Paper Width */}
+            <div className="bg-white border border-stone-200 rounded-2xl p-6 shadow-2xs space-y-4">
+              <h3 className="text-xs font-mono font-bold text-stone-500 uppercase tracking-wider">KOT PAPER WIDTH</h3>
+              
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={() => updateKotFormat({ paperWidth: "80mm" })}
+                  className={`p-3 rounded-xl border text-xs font-bold uppercase transition-all ${
+                    currentKotFormat.paperWidth === "80mm" ? "bg-stone-900 text-white border-stone-900" : "bg-stone-50 text-stone-700 border-stone-250"
+                  }`}
+                >
+                  80mm Standard Thermal Roll
+                </button>
+                <button
+                  type="button"
+                  onClick={() => updateKotFormat({ paperWidth: "58mm" })}
+                  className={`p-3 rounded-xl border text-xs font-bold uppercase transition-all ${
+                    currentKotFormat.paperWidth === "58mm" ? "bg-stone-900 text-white border-stone-900" : "bg-stone-50 text-stone-700 border-stone-250"
+                  }`}
+                >
+                  58mm Compact Handheld Roll
+                </button>
+              </div>
+            </div>
+
+            {/* Field Visibility Checkboxes */}
+            <div className="bg-white border border-stone-200 rounded-2xl p-6 shadow-2xs space-y-6">
+              
+              {/* KOT Header */}
+              <div className="space-y-2 border-b border-stone-150 pb-4">
+                <span className="text-xs font-mono font-bold text-stone-900 uppercase tracking-wider block">KOT HEADER FIELDS</span>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs">
+                  {[
+                    { key: "showRestaurantName", label: "Restaurant Name" },
+                    { key: "showKotNumber", label: "KOT Number" },
+                    { key: "showTableNumber", label: "Table Number" },
+                    { key: "showDate", label: "Date" },
+                    { key: "showTime", label: "Time" },
+                    { key: "showOrderNumber", label: "Order Number" },
+                    { key: "showCashier", label: "Cashier" },
+                  ].map(f => (
+                    <label key={f.key} className="flex items-center gap-2 cursor-pointer font-bold text-stone-700">
+                      <input
+                        type="checkbox"
+                        checked={(currentKotFormat as any)[f.key]}
+                        onChange={(e) => updateKotFormat({ [f.key]: e.target.checked })}
+                        className="w-4 h-4 accent-amber-600"
+                      />
+                      <span>{f.label}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              {/* Items & Notes */}
+              <div className="space-y-2">
+                <span className="text-xs font-mono font-bold text-stone-900 uppercase tracking-wider block">ITEMS & ORDER INSTRUCTIONS</span>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs">
+                  {[
+                    { key: "showItemName", label: "Item Name" },
+                    { key: "showQuantity", label: "Quantity" },
+                    { key: "showItemCode", label: "Item Code" },
+                    { key: "showItemNotes", label: "Item Custom Notes" },
+                    { key: "showOrderNotes", label: "Order Special Notes" },
+                  ].map(f => (
+                    <label key={f.key} className="flex items-center gap-2 cursor-pointer font-bold text-stone-700">
+                      <input
+                        type="checkbox"
+                        checked={(currentKotFormat as any)[f.key]}
+                        onChange={(e) => updateKotFormat({ [f.key]: e.target.checked })}
+                        className="w-4 h-4 accent-amber-600"
+                      />
+                      <span>{f.label}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+            </div>
+
+            {/* Typography */}
+            <div className="bg-white border border-stone-200 rounded-2xl p-6 shadow-2xs space-y-4">
+              <h3 className="text-xs font-mono font-bold text-stone-500 uppercase tracking-wider">KOT TYPOGRAPHY</h3>
+              
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 text-xs font-bold">
+                <div>
+                  <label className="text-[10px] text-stone-500 block mb-1">Header Font Size (12-28)</label>
+                  <input
+                    type="number"
+                    min={12}
+                    max={28}
+                    value={currentKotFormat.headerFontSize}
+                    onChange={(e) => updateKotFormat({ headerFontSize: Number(e.target.value) })}
+                    className="w-full bg-stone-50 border border-stone-300 p-2 rounded-lg font-bold"
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] text-stone-500 block mb-1">Item Font Size (8-18)</label>
+                  <input
+                    type="number"
+                    min={8}
+                    max={18}
+                    value={currentKotFormat.itemFontSize}
+                    onChange={(e) => updateKotFormat({ itemFontSize: Number(e.target.value) })}
+                    className="w-full bg-stone-50 border border-stone-300 p-2 rounded-lg font-bold"
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] text-stone-500 block mb-1">Note Font Size (8-18)</label>
+                  <input
+                    type="number"
+                    min={8}
+                    max={18}
+                    value={currentKotFormat.noteFontSize}
+                    onChange={(e) => updateKotFormat({ noteFontSize: Number(e.target.value) })}
+                    className="w-full bg-stone-50 border border-stone-300 p-2 rounded-lg font-bold"
+                  />
+                </div>
+              </div>
+            </div>
+
+          </div>
+
+          {/* Right Live Preview Panel */}
+          <div className="lg:col-span-5 space-y-4">
+            <div className="bg-stone-900 border border-stone-800 rounded-2xl p-4 shadow-sm text-left">
+              <div className="flex items-center justify-between pb-3 border-b border-stone-800 mb-4">
+                <span className="text-xs font-mono font-bold text-amber-500 uppercase tracking-wider flex items-center gap-1.5">
+                  <Flame className="w-4 h-4" />
+                  LIVE KOT PREVIEW
+                </span>
+                <span className="text-[10px] font-mono text-stone-400 bg-stone-800 px-2 py-0.5 rounded">
+                  {currentKotFormat.paperWidth}
+                </span>
+              </div>
+
+              {/* Rendered KOT HTML Container */}
+              <div 
+                className="bg-white rounded-xl p-3 shadow-inner overflow-x-auto min-h-[400px]"
+                dangerouslySetInnerHTML={{
+                  __html: PhysicalThermalPrinter.renderConfiguredKOTHTML(sampleKOTObject, settings, currentKotFormat)
+                }}
+              />
+            </div>
+          </div>
+
+        </div>
+      )}
 
     </motion.div>
   );

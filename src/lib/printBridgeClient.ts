@@ -8,7 +8,7 @@ export interface LocalPrinter {
 export interface PrintJobPayload {
   printerName: string;
   paperWidth: "80mm" | "58mm";
-  jobType: "CUSTOMER_BILL" | "TEST_PRINT";
+  jobType: "CUSTOMER_BILL" | "KOT" | "TEST_PRINT" | string;
   orderId: string;
   receiptText: string;
 }
@@ -95,7 +95,8 @@ export class PrintBridgeClient {
     payload: PrintJobPayload
   ): Promise<{ success: boolean; jobId?: string; error?: string }> {
     const cleanUrl = (baseUrl || "http://127.0.0.1:9100").replace(/\/+$/, "");
-    const jobId = payload.orderId || `POS-BILL-${Date.now()}`;
+    const jobTypeTag = (payload.jobType || "BILL").toLowerCase();
+    const jobId = payload.orderId ? `${payload.orderId}-${jobTypeTag}` : `POS-JOB-${Date.now()}`;
 
     // Idempotency check: guard against accidental duplicate print requests within 60s
     const now = Date.now();
@@ -287,6 +288,75 @@ export class PrintBridgeClient {
     lines.push(pad(settings.customFooter || RESTAURANT_BRANDING.receipt.footerGreeting, width, "center"));
     lines.push(pad(RESTAURANT_BRANDING.receipt.poweredByNote, width, "center"));
     lines.push("\n\n\n"); // Feed for paper cut
+
+    return lines.join("\n");
+  }
+
+  /**
+   * Format KOT order into clean deterministic 80mm or 58mm thermal plain-text KOT
+   */
+  public static formatKOTReceipt(
+    kot: any,
+    paperWidth: "80mm" | "58mm" = "80mm",
+    cashierName: string = "Cashier"
+  ): string {
+    const is80 = paperWidth === "80mm";
+    const width = is80 ? 42 : 32;
+
+    const pad = (str: string, length: number, align: "left" | "right" | "center" = "left"): string => {
+      const s = String(str || "");
+      if (s.length >= length) return s.slice(0, length);
+      const remaining = length - s.length;
+      if (align === "center") {
+        const left = Math.floor(remaining / 2);
+        return " ".repeat(left) + s + " ".repeat(remaining - left);
+      } else if (align === "right") {
+        return " ".repeat(remaining) + s;
+      } else {
+        return s + " ".repeat(remaining);
+      }
+    };
+
+    const separator = "-".repeat(width);
+    const doubleSeparator = "=".repeat(width);
+    const lines: string[] = [];
+
+    lines.push(pad(RESTAURANT_BRANDING.name.toUpperCase(), width, "center"));
+    lines.push(pad("*** KITCHEN ORDER TICKET ***", width, "center"));
+    const kotId = kot.id || `KOT-${kot.orderId || Date.now()}`;
+    lines.push(pad(`KOT NO: ${kotId}`, width, "center"));
+    lines.push(doubleSeparator);
+
+    const timeStr = new Date(kot.createdAt || Date.now()).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    const dateStr = new Date(kot.createdAt || Date.now()).toLocaleDateString();
+
+    lines.push(`Date: ${dateStr}  Time: ${timeStr}`);
+    lines.push(`Table: ${kot.tableNumber || "Takeaway"}`);
+    lines.push(`Order Type: ${(kot.orderType || "DINE-IN").toUpperCase()}`);
+    lines.push(`Cashier: ${cashierName}`);
+    lines.push(separator);
+
+    lines.push(pad("QTY  ITEM PREPARATION LIST", width, "left"));
+    lines.push(separator);
+
+    const items = kot.items || [];
+    for (const item of items) {
+      const qtyStr = pad(String(item.quantity || 1), 4, "left");
+      const name = String(item.name || "");
+      lines.push(`${qtyStr} ${name}`);
+      if (item.customization) {
+        lines.push(`     + ${item.customization}`);
+      }
+    }
+    lines.push(separator);
+
+    if (kot.specialInstructions && kot.specialInstructions !== "None" && kot.specialInstructions.trim() !== "") {
+      lines.push(`NOTES: ${kot.specialInstructions}`);
+      lines.push(separator);
+    }
+
+    lines.push(pad("*** KITCHEN COPY ONLY ***", width, "center"));
+    lines.push("\n\n\n");
 
     return lines.join("\n");
   }

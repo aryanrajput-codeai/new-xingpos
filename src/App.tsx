@@ -217,15 +217,24 @@ export default function App() {
   // If view is administrative
   if (view === "admin") {
     if (adminToken) {
-      return <AdminDashboard onLogout={handleAdminLogout} />;
+      return (
+        <div className="min-h-screen flex flex-col font-sans">
+          <PoweredByBar />
+          <AdminDashboard onLogout={handleAdminLogout} />
+        </div>
+      );
     }
-    return <AdminLogin onLoginSuccess={handleAdminLoginSuccess} />;
+    return (
+      <div className="min-h-screen flex flex-col font-sans">
+        <PoweredByBar />
+        <AdminLogin onLoginSuccess={handleAdminLoginSuccess} />
+      </div>
+    );
   }
 
   if (isMobile) {
     return (
       <div className="min-h-screen flex flex-col">
-        <PoweredByBar />
         <MobileView
           menuList={menuList}
           cart={cart}
@@ -245,8 +254,7 @@ export default function App() {
 
   return (
     <div className="bg-[#FAF9F5] min-h-screen min-h-dvh text-stone-800 flex flex-col font-sans select-none antialiased selection:bg-[#d4af37] selection:text-black">
-      {/* Top Powered by Webrajya Branding Bar */}
-      <PoweredByBar />
+
       
       {/* Ornate Top Banner / Announcement Bar */}
       <div className="bg-stone-900 text-[10px] sm:text-xs font-mono font-semibold text-[#d4af37] border-b border-stone-850/10 py-2.5 text-center tracking-widest uppercase flex items-center justify-center gap-1.5 sm:gap-3 px-4 relative z-40">

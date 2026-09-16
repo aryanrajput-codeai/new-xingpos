@@ -6,7 +6,7 @@ import {
   Activity, Star, Sparkles, Volume2, VolumeX, Printer, CheckCircle, QrCode,
   BookOpen, Eye, Calculator, History, Bell, Lock, RefreshCw, TrendingUp,
   FileText, Layers, Store, MapPin, Phone, ListPlus, Sliders, RotateCcw,
-  ArrowRightLeft, Receipt, Scale, Truck, PieChart
+  ArrowRightLeft, Receipt, Scale, Truck, PieChart, Mail, Headphones
 } from "lucide-react";
 import { jsPDF } from "jspdf";
 import { motion, AnimatePresence } from "motion/react";
@@ -14,6 +14,7 @@ import { LocalDB, Order, Coupon, InventoryItem, AuditLog, RestaurantSettings } f
 import { MenuItem, RestaurantTable, KOT, Category } from "../types";
 import { PhysicalThermalPrinter } from "../lib/printerService";
 import { PrintBridgeClient, LocalPrinter } from "../lib/printBridgeClient";
+import { SUPPORT_CONFIG } from "../config/support";
 import KitchenDashboard from "./KitchenDashboard";
 import LiveKotMonitor from "./LiveKotMonitor";
 import SupabaseDiagnostics from "../pages/admin/SupabaseDiagnostics";
@@ -3217,6 +3218,70 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
                   </button>
                 </div>
 
+                {/* Customer Support Card */}
+                <div className="bg-white border border-stone-200 rounded-2xl p-6 space-y-4 shadow-sm text-left">
+                  <div className="flex items-center gap-2 pb-2 border-b border-stone-100">
+                    <Headphones className="w-4 h-4 text-[#C67C4E]" />
+                    <h3 className="text-xs font-mono font-bold text-stone-900 uppercase tracking-wider">Customer Support</h3>
+                  </div>
+
+                  <div className="space-y-1">
+                    <p className="text-xs font-serif font-bold text-stone-900">
+                      Need help with XINGS KITCHEN POS?
+                    </p>
+                    <p className="text-xs text-stone-500 font-sans">
+                      Contact WebRajya support for technical assistance, inquiries, or configuration.
+                    </p>
+                  </div>
+
+                  <div className="p-4 bg-[#FAF6F0]/50 border border-stone-200/80 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div className="space-y-1.5">
+                      <div>
+                        <div className="font-extrabold text-sm text-stone-900 tracking-wide font-sans">
+                          {SUPPORT_CONFIG.name}
+                        </div>
+                        <div className="text-[10px] font-mono font-bold text-[#aa7c11] uppercase tracking-widest">
+                          {SUPPORT_CONFIG.role}
+                        </div>
+                      </div>
+                      
+                      <div className="flex flex-col sm:flex-row sm:items-center gap-3 pt-1 text-xs font-sans">
+                        <a 
+                          href={SUPPORT_CONFIG.mailtoUrl}
+                          className="flex items-center gap-1.5 text-stone-700 hover:text-[#C67C4E] font-medium transition-colors cursor-pointer group"
+                        >
+                          <Mail className="w-3.5 h-3.5 text-[#C67C4E] group-hover:scale-110 transition-transform" />
+                          <span className="underline decoration-stone-300 underline-offset-2">{SUPPORT_CONFIG.email}</span>
+                        </a>
+                        <a 
+                          href={SUPPORT_CONFIG.telUrl}
+                          className="flex items-center gap-1.5 text-stone-700 hover:text-[#C67C4E] font-medium transition-colors cursor-pointer group"
+                        >
+                          <Phone className="w-3.5 h-3.5 text-[#C67C4E] group-hover:scale-110 transition-transform" />
+                          <span className="underline decoration-stone-300 underline-offset-2">{SUPPORT_CONFIG.phone}</span>
+                        </a>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 pt-2 sm:pt-0 shrink-0">
+                      <a
+                        href={SUPPORT_CONFIG.mailtoUrl}
+                        className="px-4 py-2.5 bg-[#C67C4E] hover:bg-[#b06a3e] text-white font-bold text-xs tracking-wider uppercase rounded-xl transition-all shadow-xs flex items-center justify-center gap-2 cursor-pointer border border-[#C67C4E]"
+                      >
+                        <Mail className="w-3.5 h-3.5" />
+                        <span>Email Support</span>
+                      </a>
+                      <a
+                        href={SUPPORT_CONFIG.telUrl}
+                        className="px-4 py-2.5 bg-stone-900 hover:bg-stone-800 text-white font-bold text-xs tracking-wider uppercase rounded-xl transition-all shadow-xs flex items-center justify-center gap-2 cursor-pointer border border-stone-900"
+                      >
+                        <Phone className="w-3.5 h-3.5 text-[#d4af37]" />
+                        <span>Call Support</span>
+                      </a>
+                    </div>
+                  </div>
+                </div>
+
                 {/* PDF User Manual Generation Card */}
                 <div className="bg-white border border-stone-200 rounded-2xl p-6 shadow-sm space-y-4 text-left">
                   <div className="flex items-start gap-4">
@@ -3425,7 +3490,16 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
                         {/* Interactive URL frame code value generator */}
                         {(() => {
                           const tableNoStr = selectedTableForQr.tableNumber;
-                          const qrLink = `${window.location.origin}${window.location.pathname}?table=${encodeURIComponent(tableNoStr)}`;
+                          const isLocal = typeof window !== "undefined" && (
+                            window.location.protocol === "file:" ||
+                            window.location.hostname === "localhost" ||
+                            window.location.hostname === "127.0.0.1"
+                          );
+                          const publicBase = isLocal
+                            ? (settings.website || "https://jkkwrhywfpbitwvffkxx.supabase.co")
+                            : `${window.location.origin}${window.location.pathname}`;
+
+                          const qrLink = `${publicBase.replace(/\/+$/, "")}?table=${encodeURIComponent(tableNoStr)}`;
                           const googleQrApi = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(qrLink)}&qzone=1`;
 
                           return (
@@ -3450,13 +3524,13 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
 
                                 <div className="space-y-1 text-center">
                                   <div className="text-[10px] font-mono text-amber-800 tracking-widest font-bold uppercase">
-                                    DINE-IN ORDERING PORTAL
+                                    DINE-IN ORDERING
                                   </div>
                                   <div className="font-serif font-black text-2xl text-stone-950 uppercase">
                                     Table #{tableNoStr}
                                   </div>
                                   <p className="text-[9px] text-stone-500 leading-normal max-w-[190px] mx-auto font-sans">
-                                    Scan QR with your smartphone camera to browse menu, select dishes, & order instantly!
+                                    Scan QR to browse menu, select delicacies, & order directly to your table!
                                   </p>
                                 </div>
                               </div>
@@ -3464,7 +3538,7 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
                               {/* Action Items for QR Stand */}
                               <div className="w-full space-y-2 mt-2">
                                 <div className="p-3 bg-stone-50 rounded-xl text-left border border-stone-250/50 font-mono space-y-1">
-                                  <span className="text-[8px] text-stone-400 block uppercase font-bold">Encrypted Web Address:</span>
+                                  <span className="text-[8px] text-stone-400 block uppercase font-bold">Public QR Web Address:</span>
                                   <span className="text-[10px] text-stone-700 block select-all break-all leading-tight bg-white p-1.5 rounded border border-stone-150">
                                     {qrLink}
                                   </span>
@@ -3488,7 +3562,7 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
                                             <style>
                                               body { font-family: 'Georgia', serif; text-align: center; padding: 40px; background: #fff; }
                                               .stand { border: 8px solid #000; border-radius: 40px; padding: 30px; display: inline-block; max-width: 400px; background: #faf9f5; box-shadow: 0 4px 20px rgba(0,0,0,0.1); }
-                                              .header { text-transform: uppercase; font-size: 16px; font-weight: bold; margin-bottom: 25px; border-bottom: 3px solid #000; padding-bottom: 10px; }
+                                              .header { text-transform: uppercase; font-size: 18px; font-weight: 900; margin-bottom: 25px; border-bottom: 3px solid #000; padding-bottom: 10px; }
                                               .qr-container { padding: 20px; background: #fff; border-radius: 20px; border: 3px solid #000; display: inline-block; margin-bottom: 25px; }
                                               .qr { width: 250px; height: 250px; }
                                               .sub { font-size: 12px; color: #b45309; letter-spacing: 2px; font-weight: bold; margin-bottom: 5px; }
@@ -3502,10 +3576,9 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
                                               <div class="qr-container">
                                                 <img class="qr" src="${googleQrApi}" />
                                               </div>
-                                              <div class="sub">DINE-IN ORDERING PORTAL</div>
+                                              <div class="sub">DINE-IN ORDERING</div>
                                               <div class="table-num">TABLE #${tableNoStr}</div>
-                                              <p class="desc">Scan this QR code with your smartphone camera to browse menu, select delicacies and order directly to your table!</p>
-                                              <p style="font-size: 9px; color: #888; margin-top: 15px;">Powered by Webrajya</p>
+                                              <p class="desc">Scan this QR code with your smartphone camera to browse menu, select delicacies, and order directly to your table!</p>
                                             </div>
                                             <script>
                                               window.onload = function() { window.print(); if (window.location.host) { window.close(); } }
@@ -3959,35 +4032,10 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
             }
           };
 
-          // Print Trigger
+          // Print Trigger: Print KOT then Bill sequentially, then return to POS
           const handleDirectPrint = async () => {
-            setIsPrinting(true);
-            setPrintError(null);
-            try {
-              await LocalDB.apiUpdateOrderPrintStatus(showBillPrint.id, "bill", "Printing");
-
-              const modeToUse = adminPrinterMode === "silent" || settings.printingMode === "silent" ? "silent" : adminPrinterMode;
-              const result = await PhysicalThermalPrinter.printBill(showBillPrint, settings, adminPrinterWidth, modeToUse as any);
-
-              if (result.success) {
-                await LocalDB.apiUpdateOrderPrintStatus(showBillPrint.id, "bill", "Printed");
-                await LocalDB.apiAddAuditLog("Receipt Printed", `Bill printed via ${result.modeUsed} for Order: ${showBillPrint.id}`);
-              } else {
-                await LocalDB.apiUpdateOrderPrintStatus(showBillPrint.id, "bill", "Failed");
-                throw new Error(result.error || `Thermal print failed on mode "${modeToUse.toUpperCase()}".`);
-              }
-
-              const updatedOrders = await LocalDB.fetchOrders();
-              const match = updatedOrders.find(o => o.id === showBillPrint.id);
-              if (match) {
-                setShowBillPrint(match);
-              }
-              await refreshAllData();
-            } catch (err: any) {
-              setPrintError(err.message || "An unexpected print spooling error occurred.");
-            } finally {
-              setIsPrinting(false);
-            }
+            await handlePrintAction("both");
+            setShowBillPrint(null);
           };
 
           return (
@@ -4173,7 +4221,7 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
                       className="w-full py-3.5 bg-stone-900 hover:bg-stone-850 text-white rounded-xl text-xs font-extrabold tracking-wider uppercase transition-all disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer shadow-sm"
                     >
                       <Printer className="h-4 w-4" />
-                      {isPrinting ? "Printing customer bill..." : "PRINT BILL"}
+                      {isPrinting ? "Printing KOT & Bill..." : "PRINT KOT & CUSTOMER BILL"}
                     </button>
 
                     <div className="grid grid-cols-2 gap-2 pt-1">

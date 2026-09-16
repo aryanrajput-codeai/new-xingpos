@@ -1471,7 +1471,7 @@ export default function MobileView({
               </div>
             </div>
 
-            {/* Restaurant Info & Powered by Webrajya card */}
+            {/* Restaurant Info card */}
             <div className="bg-stone-900 text-stone-300 p-5 rounded-3xl space-y-2 text-center border border-stone-800 shadow-sm">
               <h3 className="text-sm font-serif font-bold text-white uppercase tracking-wider">
                 {RESTAURANT_BRANDING.name}
@@ -1479,9 +1479,6 @@ export default function MobileView({
               <p className="text-xs text-stone-400 font-light">
                 {RESTAURANT_BRANDING.tagline}
               </p>
-              <div className="pt-2 border-t border-stone-800 text-[11px] font-mono text-[#d4af37]">
-                {RESTAURANT_BRANDING.poweredByLabel}
-              </div>
             </div>
 
             {/* Social icons list */}
