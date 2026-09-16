@@ -1,0 +1,55 @@
+{
+  "name": "xings-kitchen-print-bridge",
+  "version": "1.0.0",
+  "description": "Local Thermal Print Bridge for XINGS KITCHEN POS",
+  "main": "main.js",
+  "type": "module",
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron .",
+    "build": "electron-builder --win --x64"
+  },
+  "build": {
+    "appId": "com.webrajya.xingskitchen.printbridge",
+    "productName": "XINGS KITCHEN Print Bridge",
+    "copyright": "Copyright © 2026 Webrajya",
+    "directories": {
+      "output": "../releases"
+    },
+    "files": [
+      "main.js",
+      "server.js",
+      "package.json"
+    ],
+    "win": {
+      "target": "nsis",
+      "artifactName": "XINGS-KITCHEN-Print-Bridge-Setup.exe",
+      "signAndEditExecutable": false
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "runAfterFinish": true,
+      "shortcutName": "XINGS KITCHEN Print Bridge"
+    }
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.21.2"
+  },
+  "devDependencies": {
+    "electron": "^28.2.0",
+    "electron-builder": "^24.9.0"
+  },
+  "keywords": [
+    "pos",
+    "thermal-printer",
+    "xings-kitchen",
+    "print-bridge",
+    "windows-installer"
+  ],
+  "author": "Webrajya",
+  "license": "MIT"
+}
