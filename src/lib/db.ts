@@ -8,11 +8,11 @@ import { RESTAURANT_BRANDING } from "../config/branding";
 const anyMeta = import.meta as any;
 const supabaseUrl = anyMeta.env?.VITE_SUPABASE_URL || 
                     anyMeta.env?.NEXT_PUBLIC_SUPABASE_URL || 
-                    "https://uhvxkulqovkasewxfais.supabase.co";
+                    "https://jkkwrhywfpbitwvffkxx.supabase.co";
 
 const supabaseKey = anyMeta.env?.VITE_SUPABASE_ANON_KEY || 
                     anyMeta.env?.NEXT_PUBLIC_SUPABASE_ANON_KEY || 
-                    "sb_publishable_935p_1HOmvJr1p9dhFlb2g_zMA957jI";
+                    "sb_publishable_D1rREhO08nd1vWNmxyugCg_Fff4X10Y";
 
 export const supabase = createClient(supabaseUrl, supabaseKey);
 

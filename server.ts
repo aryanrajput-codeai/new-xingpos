@@ -138,8 +138,8 @@ function writeDb(data: any) {
 
 // Supabase cloud synchronization engine
 async function syncOrderToSupabase(order: any, isUpdate = false) {
-  const supabaseUrl = process.env.SUPABASE_URL || "https://uhvxkulqovkasewxfais.supabase.co";
-  const supabaseKey = process.env.SUPABASE_ANON_KEY || "sb_publishable_935p_1HOmvJr1p9dhFlb2g_zMA957jI";
+  const supabaseUrl = process.env.SUPABASE_URL || "https://jkkwrhywfpbitwvffkxx.supabase.co";
+  const supabaseKey = process.env.SUPABASE_ANON_KEY || "sb_publishable_D1rREhO08nd1vWNmxyugCg_Fff4X10Y";
 
   if (!supabaseUrl || !supabaseKey) {
     console.warn("[Supabase] Configuration is absent. Skipping cloud ledger write.");
@@ -277,8 +277,8 @@ async function startServer() {
 
       // Supabase connectivity check
       let supabaseStatus: "HEALTHY" | "DEGRADED" | "UNCONFIGURED" = "UNCONFIGURED";
-      const supabaseUrl = process.env.SUPABASE_URL || "https://uhvxkulqovkasewxfais.supabase.co";
-      const supabaseKey = process.env.SUPABASE_ANON_KEY || "sb_publishable_935p_1HOmvJr1p9dhFlb2g_zMA957jI";
+      const supabaseUrl = process.env.SUPABASE_URL || "https://jkkwrhywfpbitwvffkxx.supabase.co";
+      const supabaseKey = process.env.SUPABASE_ANON_KEY || "sb_publishable_D1rREhO08nd1vWNmxyugCg_Fff4X10Y";
 
       if (supabaseUrl && supabaseKey) {
         try {
