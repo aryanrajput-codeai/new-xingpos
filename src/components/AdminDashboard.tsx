@@ -31,6 +31,7 @@ import IngredientManagementTab from "./IngredientManagementTab";
 import RecipeManagementTab from "./RecipeManagementTab";
 import PurchaseManagementTab from "./PurchaseManagementTab";
 import InventoryReportsDashboard from "./InventoryReportsDashboard";
+import SoftwareUpdateCard from "./SoftwareUpdateCard";
 import { OrderLifecycleService } from "../lib/orderLifecycle";
 import { RBACService } from "../lib/rbac";
 import { StaffMember } from "../types";
@@ -689,18 +690,24 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
 
         // Trigger chime sound
         try {
-          const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
-          const osc = audioCtx.createOscillator();
-          const gain = audioCtx.createGain();
-          osc.type = "sine";
-          osc.frequency.setValueAtTime(587.33, audioCtx.currentTime); // D5
-          osc.frequency.setValueAtTime(880, audioCtx.currentTime + 0.12); // A5
-          gain.gain.setValueAtTime(0.4, audioCtx.currentTime);
-          gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.6);
-          osc.connect(gain);
-          gain.connect(audioCtx.destination);
-          osc.start();
-          osc.stop(audioCtx.currentTime + 0.6);
+          const AudioCtxClass = window.AudioContext || (window as any).webkitAudioContext;
+          if (AudioCtxClass) {
+            const audioCtx = new AudioCtxClass();
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.type = "sine";
+            osc.frequency.setValueAtTime(587.33, audioCtx.currentTime); // D5
+            osc.frequency.setValueAtTime(880, audioCtx.currentTime + 0.12); // A5
+            gain.gain.setValueAtTime(0.4, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.6);
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.start();
+            osc.stop(audioCtx.currentTime + 0.6);
+            setTimeout(() => {
+              try { audioCtx.close(); } catch (_) {}
+            }, 700);
+          }
         } catch (_) {}
       }
       refreshAllData();
@@ -753,18 +760,24 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
         
         if (newOrders.length > 0) {
           try {
-            const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
-            const osc = audioCtx.createOscillator();
-            const gain = audioCtx.createGain();
-            osc.type = "sine";
-            osc.frequency.setValueAtTime(587.33, audioCtx.currentTime); // D5
-            osc.frequency.setValueAtTime(880, audioCtx.currentTime + 0.12); // A5
-            gain.gain.setValueAtTime(0.4, audioCtx.currentTime);
-            gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.6);
-            osc.connect(gain);
-            gain.connect(audioCtx.destination);
-            osc.start();
-            osc.stop(audioCtx.currentTime + 0.6);
+            const AudioCtxClass = window.AudioContext || (window as any).webkitAudioContext;
+            if (AudioCtxClass) {
+              const audioCtx = new AudioCtxClass();
+              const osc = audioCtx.createOscillator();
+              const gain = audioCtx.createGain();
+              osc.type = "sine";
+              osc.frequency.setValueAtTime(587.33, audioCtx.currentTime); // D5
+              osc.frequency.setValueAtTime(880, audioCtx.currentTime + 0.12); // A5
+              gain.gain.setValueAtTime(0.4, audioCtx.currentTime);
+              gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.6);
+              osc.connect(gain);
+              gain.connect(audioCtx.destination);
+              osc.start();
+              osc.stop(audioCtx.currentTime + 0.6);
+              setTimeout(() => {
+                try { audioCtx.close(); } catch (_) {}
+              }, 700);
+            }
           } catch (_) {}
 
           const newCustomerOrders = newOrders.filter(o => o.orderSource === "QR_MENU" || (!o.orderSource && o.orderStatus === "New Order"));
@@ -783,23 +796,29 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
       try {
         const freshOrders = await LocalDB.fetchOrders();
         const currentOrders = ordersRef.current;
-        const existingIds = new Set(currentOrders.map(o => o.id));
-        const newOrders = freshOrders.filter(o => !existingIds.has(o.id));
+        const existingIds = new Set((currentOrders || []).map(o => o?.id).filter(Boolean));
+        const newOrders = (freshOrders || []).filter(o => o && o.id && !existingIds.has(o.id));
         
         if (newOrders.length > 0) {
           try {
-            const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
-            const osc = audioCtx.createOscillator();
-            const gain = audioCtx.createGain();
-            osc.type = "sine";
-            osc.frequency.setValueAtTime(587.33, audioCtx.currentTime); // D5
-            osc.frequency.setValueAtTime(880, audioCtx.currentTime + 0.12); // A5
-            gain.gain.setValueAtTime(0.4, audioCtx.currentTime);
-            gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.6);
-            osc.connect(gain);
-            gain.connect(audioCtx.destination);
-            osc.start();
-            osc.stop(audioCtx.currentTime + 0.6);
+            const AudioCtxClass = window.AudioContext || (window as any).webkitAudioContext;
+            if (AudioCtxClass) {
+              const audioCtx = new AudioCtxClass();
+              const osc = audioCtx.createOscillator();
+              const gain = audioCtx.createGain();
+              osc.type = "sine";
+              osc.frequency.setValueAtTime(587.33, audioCtx.currentTime); // D5
+              osc.frequency.setValueAtTime(880, audioCtx.currentTime + 0.12); // A5
+              gain.gain.setValueAtTime(0.4, audioCtx.currentTime);
+              gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.6);
+              osc.connect(gain);
+              gain.connect(audioCtx.destination);
+              osc.start();
+              osc.stop(audioCtx.currentTime + 0.6);
+              setTimeout(() => {
+                try { audioCtx.close(); } catch (_) {}
+              }, 700);
+            }
           } catch (_) {}
 
           const newCustomerOrders = newOrders.filter(o => o.orderSource === "QR_MENU" || (!o.orderSource && o.orderStatus === "New Order"));
@@ -1115,13 +1134,13 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
         }
       } else if (action === "bill") {
         await LocalDB.apiUpdateOrderPrintStatus(showBillPrint.id, "bill", "Printing");
-        const success = await PhysicalThermalPrinter.printBill(showBillPrint, settings, adminPrinterWidth, adminPrinterMode);
-        if (success) {
+        const billRes = await PhysicalThermalPrinter.printBill(showBillPrint, settings, adminPrinterWidth, adminPrinterMode);
+        if (billRes && billRes.success) {
           await LocalDB.apiUpdateOrderPrintStatus(showBillPrint.id, "bill", "Printed");
           await LocalDB.apiAddAuditLog("Receipt Printed", `Bill printed manually for Order: ${showBillPrint.id}`);
         } else {
           await LocalDB.apiUpdateOrderPrintStatus(showBillPrint.id, "bill", "Failed");
-          throw new Error("Failed to print Customer Bill. The order remains saved in the database.");
+          throw new Error(billRes?.error || "Failed to print Customer Bill. The order remains saved in the database.");
         }
       } else if (action === "both") {
         // Print Both Sequentially with granular database tracking
@@ -1144,11 +1163,11 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
         await new Promise((resolve) => setTimeout(resolve, 1000));
         
         console.log("Printing Customer Bill...");
-        const billSuccess = await PhysicalThermalPrinter.printBill(showBillPrint, settings, adminPrinterWidth, adminPrinterMode);
+        const billRes = await PhysicalThermalPrinter.printBill(showBillPrint, settings, adminPrinterWidth, adminPrinterMode);
         
-        if (!billSuccess) {
+        if (!billRes || !billRes.success) {
           await LocalDB.apiUpdateOrderPrintStatus(showBillPrint.id, "bill", "Failed");
-          throw new Error("KOT printed successfully, but Customer Bill printing failed. The order remains saved in the database.");
+          throw new Error(billRes?.error || "KOT printed successfully, but Customer Bill printing failed. The order remains saved in the database.");
         }
         
         await LocalDB.apiUpdateOrderPrintStatus(showBillPrint.id, "bill", "Printed");
@@ -3218,6 +3237,9 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
                   </button>
                 </div>
 
+                {/* 4. Software Update Configuration & Status */}
+                <SoftwareUpdateCard />
+
                 {/* Customer Support Card */}
                 <div className="bg-white border border-stone-200 rounded-2xl p-6 space-y-4 shadow-sm text-left">
                   <div className="flex items-center gap-2 pb-2 border-b border-stone-100">
@@ -3490,16 +3512,12 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
                         {/* Interactive URL frame code value generator */}
                         {(() => {
                           const tableNoStr = selectedTableForQr.tableNumber;
-                          const isLocal = typeof window !== "undefined" && (
-                            window.location.protocol === "file:" ||
-                            window.location.hostname === "localhost" ||
-                            window.location.hostname === "127.0.0.1"
-                          );
-                          const publicBase = isLocal
-                            ? (settings.website || "https://jkkwrhywfpbitwvffkxx.supabase.co")
-                            : `${window.location.origin}${window.location.pathname}`;
-
-                          const qrLink = `${publicBase.replace(/\/+$/, "")}?table=${encodeURIComponent(tableNoStr)}`;
+                          const PUBLIC_MENU_URL = "https://new-xingpos.vercel.app/";
+                          const rawBase = (settings.website && settings.website.startsWith("http") && !settings.website.includes("supabase.co") && !settings.website.includes("localhost") && !settings.website.includes("127.0.0.1"))
+                            ? settings.website
+                            : PUBLIC_MENU_URL;
+                          const cleanBase = rawBase.endsWith("/") ? rawBase : `${rawBase}/`;
+                          const qrLink = `${cleanBase}?table=${encodeURIComponent(tableNoStr)}`;
                           const googleQrApi = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(qrLink)}&qzone=1`;
 
                           return (

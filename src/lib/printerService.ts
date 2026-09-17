@@ -18,6 +18,12 @@ declare global {
       appName: string;
       getPrinters: () => Promise<Array<{ name: string; displayName?: string; isDefault?: boolean }>>;
       silentPrint: (options: { htmlContent: string; deviceName?: string; copies?: number; paperWidth?: string }) => Promise<{ success: boolean; error?: string }>;
+      getAppVersion: () => Promise<string>;
+      checkForUpdates: () => Promise<{ success: boolean; versionInfo?: any; error?: string }>;
+      downloadUpdate: () => Promise<{ success: boolean; error?: string }>;
+      quitAndInstall: () => Promise<{ success: boolean; error?: string }>;
+      onUpdateStateChange: (callback: (data: { status: string; version?: string; releaseNotes?: string; releaseDate?: string; error?: string }) => void) => () => void;
+      onUpdateProgress: (callback: (progress: { percent: number; transferred: number; total: number; bytesPerSecond: number }) => void) => () => void;
     };
   }
 }
@@ -943,7 +949,7 @@ export class PhysicalThermalPrinter {
       `;
     }
 
-    return this.generatePremiumReceiptHTML("bill", data, settings, opts);
+    return this.renderConfiguredBillHTML(data, settings, { paperWidth: opts.paperWidth });
   }
 
   /**
@@ -1379,7 +1385,7 @@ export class PhysicalThermalPrinter {
   public static renderConfiguredBillHTML(
     data: any,
     settings: any,
-    overrideFormat?: BillFormatSettings
+    overrideFormat?: Partial<BillFormatSettings>
   ): string {
     const fmt: BillFormatSettings = {
       ...defaultBillFormatSettings,
@@ -1662,6 +1668,10 @@ export class PhysicalThermalPrinter {
     const paperWidth = settings?.kotFormat?.paperWidth || width || settings?.paperWidth || "80mm";
 
     const htmlContent = this.renderConfiguredKOTHTML(kot, settings);
+    if (!htmlContent || htmlContent.trim().length === 0) {
+      console.error("[Printer Service] printKOT aborted: Generated HTML content is empty.");
+      return false;
+    }
 
     if (window.electronAPI?.silentPrint) {
       console.log(`[Electron Silent KOT Print] Printer: "${targetPrinter || 'Default'}", Copies: ${copies}, Paper: ${paperWidth}`);
@@ -1692,6 +1702,10 @@ export class PhysicalThermalPrinter {
     const paperWidth = settings?.billFormat?.paperWidth || width || settings?.paperWidth || "80mm";
 
     const htmlContent = this.renderConfiguredBillHTML(order, settings);
+    if (!htmlContent || htmlContent.trim().length === 0) {
+      console.error("[Printer Service] printBill aborted: Generated HTML content is empty.");
+      return { success: false, modeUsed: "none", error: "Generated bill HTML is empty" };
+    }
 
     if (window.electronAPI?.silentPrint) {
       console.log(`[Electron Silent Bill Print] Printer: "${targetPrinter || 'Default'}", Copies: ${copies}, Paper: ${paperWidth}`);

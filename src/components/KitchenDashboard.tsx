@@ -238,8 +238,8 @@ export default function KitchenDashboard() {
           setActivePrintingKot(null);
           return;
         }
-        const billSuccess = await PhysicalThermalPrinter.printBill(matchedOrder, settings, resolvedWidth, mode);
-        if (!billSuccess) {
+        const billRes = await PhysicalThermalPrinter.printBill(matchedOrder, settings, resolvedWidth, mode);
+        if (!billRes || !billRes.success) {
           addPrinterLog(`[WARNING] KOT printed successfully, but Customer Bill failed.`);
         } else {
           addPrinterLog(`[SUCCESS] KOT and Customer Bill printed for Order ${matchedOrder.id}.`);

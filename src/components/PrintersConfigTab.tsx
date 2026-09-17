@@ -90,12 +90,10 @@ export default function PrintersConfigTab() {
         const printers = await window.electronAPI.getPrinters();
         setOsPrinters(printers || []);
       } else {
-        // Fallback sample printers for browser dev environment
+        // Fallback sample USB printers for browser dev environment
         setOsPrinters([
-          { name: "EPSON TM-T82X", displayName: "EPSON TM-T82X Receipt Printer", isDefault: true },
-          { name: "Artery POS80", displayName: "Artery POS80 Thermal Printer", isDefault: false },
-          { name: "Kitchen Thermal PRT-58", displayName: "Kitchen Thermal PRT-58", isDefault: false },
-          { name: "Microsoft Print to PDF", displayName: "Microsoft Print to PDF", isDefault: false },
+          { name: "EPSON TM-T82X (USB)", displayName: "EPSON TM-T82X USB Thermal Printer", isDefault: true },
+          { name: "Artery POS80 (USB)", displayName: "Artery POS80 USB Thermal Printer", isDefault: false },
         ]);
       }
     } catch (err: any) {
@@ -342,10 +340,10 @@ export default function PrintersConfigTab() {
                 <div>
                   <h3 className="text-sm font-serif font-bold text-stone-900 uppercase tracking-wide flex items-center gap-2">
                     <Printer className="w-4 h-4 text-[#d4af37]" />
-                    OS PRINTER ASSIGNMENT & COPIES
+                    USB PRINTER ASSIGNMENT & COPIES
                   </h3>
                   <p className="text-xs text-stone-500">
-                    Assign installed OS thermal printers and copy counts.
+                    Assign locally connected USB thermal printers and copy counts.
                   </p>
                 </div>
                 <button
@@ -383,10 +381,10 @@ export default function PrintersConfigTab() {
                       onChange={(e) => setSettings(prev => ({ ...prev, kotPrinter: e.target.value }))}
                       className="w-full bg-white border border-stone-300 px-3 py-2 text-xs rounded-xl focus:outline-none focus:border-stone-800 font-sans font-bold"
                     >
-                      <option value="">Default OS Printer</option>
+                      <option value="">Auto-Detect USB Printer</option>
                       {osPrinters.map(p => (
                         <option key={p.name} value={p.name}>
-                          {p.name} {p.isDefault ? "(OS Default)" : ""}
+                          {p.name} {p.isDefault ? "(USB Default)" : ""}
                         </option>
                       ))}
                     </select>
@@ -427,10 +425,10 @@ export default function PrintersConfigTab() {
                       onChange={(e) => setSettings(prev => ({ ...prev, billPrinter: e.target.value }))}
                       className="w-full bg-white border border-stone-300 px-3 py-2 text-xs rounded-xl focus:outline-none focus:border-stone-800 font-sans font-bold"
                     >
-                      <option value="">Default OS Printer</option>
+                      <option value="">Auto-Detect USB Printer</option>
                       {osPrinters.map(p => (
                         <option key={p.name} value={p.name}>
-                          {p.name} {p.isDefault ? "(OS Default)" : ""}
+                          {p.name} {p.isDefault ? "(USB Default)" : ""}
                         </option>
                       ))}
                     </select>
@@ -502,7 +500,7 @@ export default function PrintersConfigTab() {
                 </div>
                 <div className="flex justify-between border-b border-stone-800 pb-1.5">
                   <span className="text-stone-400">KOT Printer:</span>
-                  <span className="font-bold text-white truncate max-w-[140px]">{settings.kotPrinter || "Default OS"}</span>
+                  <span className="font-bold text-white truncate max-w-[140px]">{settings.kotPrinter || "Auto-Detect USB"}</span>
                 </div>
                 <div className="flex justify-between border-b border-stone-800 pb-1.5">
                   <span className="text-stone-400">KOT Copies:</span>
@@ -510,7 +508,7 @@ export default function PrintersConfigTab() {
                 </div>
                 <div className="flex justify-between border-b border-stone-800 pb-1.5">
                   <span className="text-stone-400">Bill Printer:</span>
-                  <span className="font-bold text-white truncate max-w-[140px]">{settings.billPrinter || "Default OS"}</span>
+                  <span className="font-bold text-white truncate max-w-[140px]">{settings.billPrinter || "Auto-Detect USB"}</span>
                 </div>
                 <div className="flex justify-between border-b border-stone-800 pb-1.5">
                   <span className="text-stone-400">Bill Copies:</span>
@@ -531,18 +529,32 @@ export default function PrintersConfigTab() {
             <div className="bg-white border border-stone-200 rounded-2xl p-5 shadow-2xs space-y-3">
               <h4 className="text-xs font-mono font-bold text-stone-700 uppercase tracking-wider flex items-center gap-1.5">
                 <Printer className="w-3.5 h-3.5 text-stone-500" />
-                DETECTED OS PRINTERS ({osPrinters.length})
+                DETECTED USB PRINTERS ({osPrinters.length})
               </h4>
               <div className="space-y-1.5 max-h-[300px] overflow-y-auto pr-1">
                 {osPrinters.length === 0 ? (
-                  <p className="text-xs text-stone-400 italic">No installed printers detected by OS spooler.</p>
+                  <div className="p-4 bg-stone-50 border border-stone-200/80 rounded-xl space-y-2 text-center">
+                    <p className="text-xs font-bold text-stone-700">No USB thermal printer detected.</p>
+                    <p className="text-[11px] text-stone-500 font-sans">
+                      Connect a USB thermal printer and click Refresh List.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={fetchPrinters}
+                      disabled={isLoadingPrinters}
+                      className="mt-1 px-3 py-1.5 bg-stone-900 hover:bg-stone-800 text-white text-xs font-bold rounded-lg transition-all inline-flex items-center gap-1.5 cursor-pointer"
+                    >
+                      <RefreshCw className={`w-3.5 h-3.5 ${isLoadingPrinters ? "animate-spin" : ""}`} />
+                      <span>Refresh List</span>
+                    </button>
+                  </div>
                 ) : (
                   osPrinters.map(p => (
                     <div key={p.name} className="p-2 bg-stone-50 rounded-lg border border-stone-200/60 text-xs flex items-center justify-between">
                       <span className="font-bold text-stone-800 truncate">{p.name}</span>
                       {p.isDefault && (
                         <span className="text-[9px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded shrink-0">
-                          DEFAULT
+                          USB DEFAULT
                         </span>
                       )}
                     </div>

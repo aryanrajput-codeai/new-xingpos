@@ -135,7 +135,7 @@ export function parseCurrentRoute(): ParsedRoute {
   let path = window.location.pathname;
   const hash = window.location.hash;
 
-  // If pathname is root but hash contains #admin or #/admin, use hash path
+  // If pathname is root/index.html or if hash contains #admin or #/admin, use hash path
   if (hash.startsWith("#admin") || hash.startsWith("#/admin")) {
     path = hash.replace(/^#\/?/, "/");
   }
@@ -192,46 +192,69 @@ export function buildAdminUrl(
   tab: AdminTab, 
   subTab?: ReportsSubTab | MenuSubTab | string
 ): string {
-  let basePath = "/admin";
+  let targetPath = "/admin";
 
   switch (tab) {
     case "analytics":
-      return "/admin/dashboard";
+      targetPath = "/admin/dashboard";
+      break;
     case "reports":
       if (subTab && VALID_REPORTS_SUBTABS[subTab]) {
-        return `/admin/reports/${subTab}`;
+        targetPath = `/admin/reports/${subTab}`;
+      } else {
+        targetPath = "/admin/reports";
       }
-      return "/admin/reports";
+      break;
     case "menu":
       if (subTab === "categories") {
-        return "/admin/menu/categories";
+        targetPath = "/admin/menu/categories";
+      } else {
+        targetPath = "/admin/menu/items";
       }
-      return "/admin/menu/items";
+      break;
     case "tables":
-      return "/admin/reservations";
+      targetPath = "/admin/reservations";
+      break;
     case "pos":
-      return "/admin/pos";
+      targetPath = "/admin/pos";
+      break;
     case "orders":
-      return "/admin/orders";
+      targetPath = "/admin/orders";
+      break;
     case "history":
-      return "/admin/history";
+      targetPath = "/admin/history";
+      break;
     case "customers":
-      return "/admin/customers";
+      targetPath = "/admin/customers";
+      break;
     case "coupons":
-      return "/admin/coupons";
+      targetPath = "/admin/coupons";
+      break;
     case "printers":
-      return "/admin/printers";
+      targetPath = "/admin/printers";
+      break;
     case "logs":
-      return "/admin/logs";
+      targetPath = "/admin/logs";
+      break;
     case "settings":
-      return "/admin/settings";
+      targetPath = "/admin/settings";
+      break;
     case "kitchen":
-      return "/admin/kitchen";
+      targetPath = "/admin/kitchen";
+      break;
     case "supabase":
-      return "/admin/supabase";
+      targetPath = "/admin/supabase";
+      break;
     default:
-      return `${basePath}/${tab}`;
+      targetPath = `/admin/${tab}`;
+      break;
   }
+
+  const isFileProtocol = typeof window !== "undefined" && window.location.protocol === "file:";
+  if (isFileProtocol) {
+    return `#${targetPath}`;
+  }
+  return targetPath;
 }
 
 /**
@@ -243,13 +266,23 @@ export function navigateTo(
 ): void {
   if (typeof window === "undefined") return;
 
-  const currentPath = window.location.pathname + window.location.hash;
-  if (currentPath === url) return;
+  const isFileProtocol = window.location.protocol === "file:";
+  let targetUrl = url;
+
+  if (isFileProtocol && !targetUrl.startsWith("#")) {
+    targetUrl = `#${targetUrl.startsWith("/") ? "" : "/"}${targetUrl}`;
+  }
+
+  const currentPath = isFileProtocol 
+    ? window.location.hash 
+    : window.location.pathname + window.location.hash;
+
+  if (currentPath === targetUrl) return;
 
   if (options.replace) {
-    window.history.replaceState({ url }, "", url);
+    window.history.replaceState({ url: targetUrl }, "", targetUrl);
   } else {
-    window.history.pushState({ url }, "", url);
+    window.history.pushState({ url: targetUrl }, "", targetUrl);
   }
 
   // Dispatch custom event to notify all listening components asynchronously on next frame/tick
