@@ -60,13 +60,16 @@
         }
       ],
       "executableName": "XINGS-KITCHEN",
+      "requestedExecutionLevel": "asInvoker",
       "signAndEditExecutable": false
     },
     "nsis": {
-      "oneClick": true,
+      "oneClick": false,
       "perMachine": false,
-      "allowToChangeInstallationDirectory": false,
+      "allowToChangeInstallationDirectory": true,
+      "allowElevation": true,
       "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
       "runAfterFinish": true,
       "shortcutName": "XINGS KITCHEN",
       "artifactName": "XINGS-KITCHEN-Desktop-Setup.exe"

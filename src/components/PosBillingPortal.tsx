@@ -653,11 +653,15 @@ export default function PosBillingPortal({
         await LocalDB.apiUpdateOrderPrintStatus(finalOrder.id, "bill", "Printing");
         const billRes = await PhysicalThermalPrinter.printBill(finalOrder, settings, paperWidth, "silent");
 
+        const isElectron = Boolean(window.electronAPI?.isElectron);
+
         if (billRes.success) {
           await LocalDB.apiUpdateOrderPrintStatus(finalOrder.id, "bill", "Printed");
           setPrintNotice({
             type: "success",
-            message: `Order #${finalOrder.id} finalized! Customer Bill printed. Ready for next order.`,
+            message: isElectron 
+              ? `Order #${finalOrder.id} finalized! Customer Bill printed successfully. Ready for next order.`
+              : `Order #${finalOrder.id} finalized! Customer Bill print request sent. Ready for next order.`,
             order: finalOrder
           });
         } else {
@@ -677,12 +681,15 @@ export default function PosBillingPortal({
 
         await LocalDB.apiUpdateOrderPrintStatus(finalOrder.id, "kot", "Printing");
         const kotSuccess = await PhysicalThermalPrinter.printKOT(kotObject as any, paperWidth, "silent", `POS (${currentRole})`, settings);
+        const isElectron = Boolean(window.electronAPI?.isElectron);
 
         if (kotSuccess) {
           await LocalDB.apiUpdateOrderPrintStatus(finalOrder.id, "kot", "Printed");
           setPrintNotice({
             type: "success",
-            message: `Order #${finalOrder.id} finalized! KOT printed. Ready for next order.`,
+            message: isElectron
+              ? `Order #${finalOrder.id} finalized! KOT printed successfully. Ready for next order.`
+              : `Order #${finalOrder.id} finalized! KOT print request sent. Ready for next order.`,
             order: finalOrder
           });
         } else {
@@ -728,12 +735,15 @@ export default function PosBillingPortal({
         // Step 2: Print Customer Bill
         await LocalDB.apiUpdateOrderPrintStatus(finalOrder.id, "bill", "Printing");
         const billRes = await PhysicalThermalPrinter.printBill(finalOrder, settings, paperWidth, "silent");
+        const isElectron = Boolean(window.electronAPI?.isElectron);
 
         if (billRes.success) {
           await LocalDB.apiUpdateOrderPrintStatus(finalOrder.id, "bill", "Printed");
           setPrintNotice({
             type: "success",
-            message: `Order #${finalOrder.id} finalized! KOT & Customer Bill printed. Ready for next order.`,
+            message: isElectron
+              ? `Order #${finalOrder.id} finalized! KOT & Customer Bill printed successfully. Ready for next order.`
+              : `Order #${finalOrder.id} finalized! KOT & Customer Bill print request sent.`,
             order: finalOrder
           });
         } else {
@@ -769,10 +779,13 @@ export default function PosBillingPortal({
       order
     });
     const res = await PhysicalThermalPrinter.printBill(order, settings, paperWidth, "silent");
+    const isElectron = Boolean(window.electronAPI?.isElectron);
     if (res.success) {
       setPrintNotice({
         type: "success",
-        message: `Customer Bill for Order #${order.id} printed successfully.`,
+        message: isElectron
+          ? `Customer Bill for Order #${order.id} printed successfully.`
+          : `Print request sent for Customer Bill (Order #${order.id}).`,
         order
       });
     } else {
@@ -922,16 +935,29 @@ export default function PosBillingPortal({
           </div>
 
           {/* Thermal Printer Status Indicator */}
-          <div 
-            title="Thermal Printing: Browser Native Dialog"
-            className="px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-lg sm:rounded-xl flex items-center gap-1.5 border transition-all bg-emerald-50 text-emerald-800 border-emerald-200"
-          >
-            <span className="w-2 h-2 rounded-full bg-emerald-500" />
-            <Printer className="w-3.5 h-3.5" />
-            <span className="font-mono text-[9px] sm:text-[10px] font-bold uppercase">
-              Printer: Ready
-            </span>
-          </div>
+          {Boolean(window.electronAPI?.isElectron) ? (
+            <div 
+              title="Electron Silent Printing: Local hardware printer integration ready"
+              className="px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-lg sm:rounded-xl flex items-center gap-1.5 border transition-all bg-emerald-50 text-emerald-800 border-emerald-200"
+            >
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+              <Printer className="w-3.5 h-3.5" />
+              <span className="font-mono text-[9px] sm:text-[10px] font-bold uppercase">
+                Printer: Ready
+              </span>
+            </div>
+          ) : (
+            <div 
+              title="Web Browser Mode: Hardware printer status unverified on web client"
+              className="px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-lg sm:rounded-xl flex items-center gap-1.5 border transition-all bg-slate-100 text-slate-700 border-slate-300"
+            >
+              <span className="w-2 h-2 rounded-full bg-slate-400" />
+              <Printer className="w-3.5 h-3.5" />
+              <span className="font-mono text-[9px] sm:text-[10px] font-bold uppercase">
+                Print Service: Available
+              </span>
+            </div>
+          )}
 
           {/* Transfer Table Quick Action (Only for Dine-In) */}
           {orderType === "dine-in" && (

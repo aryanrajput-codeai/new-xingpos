@@ -239,16 +239,22 @@ export default function KitchenDashboard() {
           return;
         }
         const billRes = await PhysicalThermalPrinter.printBill(matchedOrder, settings, resolvedWidth, mode);
+        const isElectron = Boolean(window.electronAPI?.isElectron);
         if (!billRes || !billRes.success) {
-          addPrinterLog(`[WARNING] KOT printed successfully, but Customer Bill failed.`);
+          addPrinterLog(`[WARNING] KOT print request processed, but Customer Bill failed.`);
         } else {
-          addPrinterLog(`[SUCCESS] KOT and Customer Bill printed for Order ${matchedOrder.id}.`);
+          addPrinterLog(isElectron 
+            ? `[SUCCESS] KOT and Customer Bill printed for Order ${matchedOrder.id}.`
+            : `[INFO] KOT and Customer Bill print request sent for Order ${matchedOrder.id}.`);
         }
       } else {
         addPrinterLog(`[WARNING] Associated Order ${kot.orderId} not found. Printing KOT only...`);
         const kotSuccess = await PhysicalThermalPrinter.printKOT(kot as any, resolvedWidth, mode, "Admin");
+        const isElectron = Boolean(window.electronAPI?.isElectron);
         if (kotSuccess) {
-          addPrinterLog(`[SUCCESS] KOT ${kot.id} printed successfully.`);
+          addPrinterLog(isElectron 
+            ? `[SUCCESS] KOT ${kot.id} printed successfully.`
+            : `[INFO] KOT ${kot.id} print request sent.`);
         } else {
           addPrinterLog(`[ERROR] KOT ${kot.id} printing failed.`);
         }
