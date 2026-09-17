@@ -2062,23 +2062,11 @@ export class LocalDB {
       window.dispatchEvent(new Event("storage"));
     }
 
-    // 2. ATTEMPT SUPABASE SYNC IN BACKGROUND / GRACEFULLY
+    // 2. ATTEMPT SUPABASE SYNC
     try {
       const updatePayload: any = { 
         order_status: status,
-        confirmed_at: current[idx]?.confirmedAt || null,
-        preparing_at: current[idx]?.preparingAt || null,
-        ready_at: current[idx]?.readyAt || null,
-        served_at: current[idx]?.servedAt || null,
-        packed_at: current[idx]?.packedAt || null,
-        dispatched_at: current[idx]?.dispatchedAt || null,
-        delivered_at: current[idx]?.deliveredAt || null,
-        completed_at: current[idx]?.completedAt || null,
-        cancelled_at: current[idx]?.cancelledAt || null,
-        voided_at: current[idx]?.voidedAt || null,
-        status_updated_by: operator,
-        version: current[idx]?.version || 1,
-        timeline: current[idx]?.timeline || []
+        timeline: (idx !== -1 ? current[idx]?.timeline : []) || []
       };
       if (paymentStatus) {
         updatePayload.payment_status = paymentStatus;
@@ -2090,12 +2078,23 @@ export class LocalDB {
          .eq("id", orderId);
 
       if (error) {
-        console.warn("[Supabase API Sync Warning] Order status update failed on remote server:", error);
+        console.error("[Supabase API Sync Error] Order status update failed on remote server:", error);
+        throw new Error(error.message || `Supabase order status update failed (HTTP ${httpStatus})`);
       } else {
         console.log(`[Supabase API Sync Success] Order ${orderId} synced.`);
       }
     } catch (err: any) {
-      console.warn("[Supabase API Network Exception] Relying on local database:", err);
+      console.error("[Supabase API Exception] Failed to update order status:", err);
+      throw err;
+    }
+
+    if (idx === -1) {
+      // Reload order state into memory cache if it was missing locally
+      const freshOrders = await this.fetchOrders();
+      const freshlyFetched = freshOrders.find(o => o.id === orderId);
+      if (freshlyFetched) {
+        orderCopy = { ...freshlyFetched };
+      }
     }
 
     if (orderCopy) {
@@ -2130,7 +2129,9 @@ export class LocalDB {
     }
 
     // 3. Always return the updated local order
-    return current[idx] || { id: orderId, orderStatus: status, paymentStatus: paymentStatus } as any;
+    const updatedCurrent = this.getOrders();
+    const updatedIdx = updatedCurrent.findIndex(o => o.id === orderId);
+    return updatedCurrent[updatedIdx] || orderCopy || { id: orderId, orderStatus: status, paymentStatus: paymentStatus } as any;
   }
 
   static supportedColumns: string[] = [];

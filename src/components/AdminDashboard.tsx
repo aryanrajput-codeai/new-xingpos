@@ -140,6 +140,7 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
   const [secondsRemaining, setSecondsRemaining] = useState(600); // 10 minutes
   
   // Tab-specific interactive states
+  const [processingOrderIds, setProcessingOrderIds] = useState<Set<string>>(new Set());
   const [autoPrintEnabled, setAutoPrintEnabled] = useState<boolean>(() => localStorage.getItem("ij_auto_print_enabled") !== "false");
   const [orderFilter, setOrderFilter] = useState<string>("All");
   const [orderSearch, setOrderSearch] = useState<string>("");
@@ -1192,12 +1193,20 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
   // OPERATIONS MODIFIERS
   // 1. Order Status Updates
   const updateOrderStatus = async (orderId: string, status: Order["orderStatus"]) => {
+    if (processingOrderIds.has(orderId)) return;
+    setProcessingOrderIds(prev => new Set(prev).add(orderId));
     try {
       await LocalDB.apiUpdateOrderStatus(orderId, status);
       await refreshAllData();
       triggerReviewChime();
     } catch (err: any) {
       alert(err.message || "Failed to update status on server.");
+    } finally {
+      setProcessingOrderIds(prev => {
+        const next = new Set(prev);
+        next.delete(orderId);
+        return next;
+      });
     }
   };
 
@@ -1601,13 +1610,14 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
                   Inspect details
                 </button>
                 <button
+                  disabled={processingOrderIds.has(alertItem.id)}
                   onClick={() => {
                     updateOrderStatus(alertItem.id, "Confirmed");
                     setActiveAlerts(prev => prev.filter(a => a.id !== alertItem.id));
                   }}
-                  className="px-3.5 py-1.5 bg-stone-100 hover:bg-stone-200 text-stone-800 font-semibold text-[10px] rounded-lg tracking-wider uppercase border border-stone-200 cursor-pointer"
+                  className="px-3.5 py-1.5 bg-stone-100 hover:bg-stone-200 disabled:opacity-50 text-stone-800 font-semibold text-[10px] rounded-lg tracking-wider uppercase border border-stone-200 cursor-pointer"
                 >
-                  Accept Order
+                  {processingOrderIds.has(alertItem.id) ? "Accepting..." : "Accept Order"}
                 </button>
               </div>
             </motion.div>
@@ -2031,21 +2041,24 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
                                 {(() => {
                                   // For QR_MENU customer orders in New Order state: offer Accept and Reject
                                   if (o.orderSource === "QR_MENU" && o.orderStatus === "New Order") {
+                                    const isProc = processingOrderIds.has(o.id);
                                     return (
                                       <div className="flex items-center gap-1">
                                         <button
+                                          disabled={isProc}
                                           onClick={() => updateOrderStatus(o.id, "Confirmed")}
-                                          className="px-2 py-1 bg-green-50 hover:bg-green-100 text-green-700 border border-green-200 rounded font-bold uppercase text-[9px] cursor-pointer"
+                                          className="px-2 py-1 bg-green-50 hover:bg-green-100 disabled:opacity-50 text-green-700 border border-green-200 rounded font-bold uppercase text-[9px] cursor-pointer"
                                           title="Accept QR Menu customer order"
                                         >
-                                          Accept
+                                          {isProc ? "..." : "Accept"}
                                         </button>
                                         <button
+                                          disabled={isProc}
                                           onClick={() => updateOrderStatus(o.id, "Cancelled")}
-                                          className="px-2 py-1 bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 rounded font-bold uppercase text-[9px] cursor-pointer"
+                                          className="px-2 py-1 bg-red-50 hover:bg-red-100 disabled:opacity-50 text-red-700 border border-red-200 rounded font-bold uppercase text-[9px] cursor-pointer"
                                           title="Reject QR Menu customer order"
                                         >
-                                          Reject
+                                          {isProc ? "..." : "Reject"}
                                         </button>
                                       </div>
                                     );
