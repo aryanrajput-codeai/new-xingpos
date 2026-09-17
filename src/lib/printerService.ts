@@ -8,7 +8,6 @@ import {
   defaultKOTFormatSettings 
 } from "./db";
 import { RESTAURANT_BRANDING } from "../config/branding";
-import { PrintBridgeClient } from "./printBridgeClient";
 
 declare global {
   interface Window {

@@ -1,11 +1,13 @@
-# XINGS KITCHEN - Production Windows Thermal Print Bridge Setup & Administration Guide
-**Version**: 1.0.0  
-**Publisher**: Webrajya  
-**Target OS**: Windows 10 / 11 (64-bit), macOS 10.15+, Linux  
+# XINGS KITCHEN — Historical Print Bridge Reference (Legacy)
+> [!IMPORTANT]
+> **PRODUCTION DEPLOYMENT NOTE (v1.1.1+)**:
+> The current production XINGS KITCHEN application (`XINGS-KITCHEN-Desktop-Setup.exe` v1.1.1+) uses native Electron IPC silent printing (`webContents.print({ silent: true })`).
+> Standalone Print Bridge servers, port `9100`, and QZ Tray are **NOT REQUIRED** for production deployment.
+> This document is retained solely for historical reference.
 
 ---
 
-## 1. Executive Summary & Architecture
+## 1. Executive Summary & Architecture (Historical Reference)
 
 The **XINGS KITCHEN Print Bridge** (`xings-kitchen-print-bridge`) is a standalone background application and Windows service wrapper that enables **one-click silent customer bill printing** directly to 80mm and 58mm thermal printers from the Web POS without requiring Chrome Print Preview or Windows print dialogs.
 

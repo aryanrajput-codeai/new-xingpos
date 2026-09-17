@@ -6,9 +6,7 @@ coverage/
 *.log
 .env*
 !.env.example
-releases/**/win-unpacked/
-releases/**/*.yaml
-releases/**/*.yml
-releases/**/*.blockmap
+releases/
+scratch/
 
 
