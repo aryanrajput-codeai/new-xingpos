@@ -862,7 +862,8 @@ export class PhysicalThermalPrinter {
     const bg = isDark ? "#121212" : "#ffffff";
     const textCol = isDark ? "#f3f4f6" : "#000000";
 
-    if (type === "kot") {
+    const typeNorm = (type || "").trim().toLowerCase();
+    if (typeNorm === "kot" || typeNorm.includes("kot") || typeNorm === "duplicate-copy" || typeNorm === "add-on") {
       const kotNo = data.id || "KOT-NEW";
       const orderNo = data.orderId || "XK-NEW";
       const orderNumOnly = orderNo.replace(/^(SR|XK)-/, "#");
@@ -1674,7 +1675,7 @@ export class PhysicalThermalPrinter {
     }
 
     if (window.electronAPI?.silentPrint) {
-      console.log(`[Electron Silent KOT Print] Printer: "${targetPrinter || 'Default'}", Copies: ${copies}, Paper: ${paperWidth}`);
+      console.log(`[Printer IPC] type: "kot", deviceName: "${targetPrinter || 'Default'}", silent: true, copies: ${copies}, paperWidth: "${paperWidth}", transport: "Electron IPC"`);
       const res = await window.electronAPI.silentPrint({
         htmlContent,
         deviceName: targetPrinter,
@@ -1684,7 +1685,7 @@ export class PhysicalThermalPrinter {
       return res.success;
     }
 
-    console.log("[Browser Silent KOT Simulation] Executed silent KOT print.");
+    console.log(`[Printer IPC] type: "kot", deviceName: "${targetPrinter || 'Default'}", silent: true, transport: "Browser Simulated"`);
     return true;
   }
 
@@ -1708,7 +1709,7 @@ export class PhysicalThermalPrinter {
     }
 
     if (window.electronAPI?.silentPrint) {
-      console.log(`[Electron Silent Bill Print] Printer: "${targetPrinter || 'Default'}", Copies: ${copies}, Paper: ${paperWidth}`);
+      console.log(`[Printer IPC] type: "bill", deviceName: "${targetPrinter || 'Default'}", silent: true, copies: ${copies}, paperWidth: "${paperWidth}", transport: "Electron IPC"`);
       const res = await window.electronAPI.silentPrint({
         htmlContent,
         deviceName: targetPrinter,
@@ -1722,7 +1723,7 @@ export class PhysicalThermalPrinter {
       return { success: false, modeUsed: "electron_silent", error: res.error || "Electron silent print failed" };
     }
 
-    console.log("[Browser Silent Bill Simulation] Executed silent Bill print.");
+    console.log(`[Printer IPC] type: "bill", deviceName: "${targetPrinter || 'Default'}", silent: true, transport: "Browser Simulated"`);
     return { success: true, modeUsed: "browser_simulated" };
   }
 

@@ -96,7 +96,7 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
   
   // Custom single-printer thermal hub states
   const [adminPrinterWidth, setAdminPrinterWidth] = useState<"58mm" | "80mm">("80mm");
-  const [adminPrinterMode, setAdminPrinterMode] = useState<"fallback" | "usb" | "serial" | "silent">("fallback");
+  const [adminPrinterMode, setAdminPrinterMode] = useState<"fallback" | "usb" | "serial" | "silent">("silent");
   const [isPrinting, setIsPrinting] = useState(false);
   const [printError, setPrintError] = useState<string | null>(null);
 

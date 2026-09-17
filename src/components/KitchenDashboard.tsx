@@ -272,12 +272,14 @@ export default function KitchenDashboard() {
   // Auto processing effects: detect unprinted KOTs
   useEffect(() => {
     if (autoPrint && printerStatus === "connected" && kots.length > 0) {
-      const unprinted = kots.filter(k => !k.printed && k.status !== "Cancelled");
+      const unprinted = kots.filter(k => !k.printed && k.status !== "Cancelled" && !printingQueueIds.current.has(k.id));
       if (unprinted.length > 0) {
         // Sort oldest first
         const sorted = [...unprinted].sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
         const oldestKOT = sorted[0];
-        simulateThermalPrint(oldestKOT);
+        if (oldestKOT) {
+          simulateThermalPrint(oldestKOT);
+        }
       }
     }
   }, [kots, autoPrint, printerStatus]);

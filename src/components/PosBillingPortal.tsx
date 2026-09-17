@@ -760,9 +760,28 @@ export default function PosBillingPortal({
     }
   };
 
-  // Browser print helper
-  const handleManualBrowserPrint = (order: Order) => {
-    setShowBillPrint(order);
+  // Silent receipt print helper for POS banner
+  const handleManualBrowserPrint = async (order: Order) => {
+    const paperWidth = settings.billFormat?.paperWidth || settings.paperWidth || "80mm";
+    setPrintNotice({
+      type: "info",
+      message: `Re-printing Customer Bill for Order #${order.id}...`,
+      order
+    });
+    const res = await PhysicalThermalPrinter.printBill(order, settings, paperWidth, "silent");
+    if (res.success) {
+      setPrintNotice({
+        type: "success",
+        message: `Customer Bill for Order #${order.id} printed successfully.`,
+        order
+      });
+    } else {
+      setPrintNotice({
+        type: "error",
+        message: `Failed to print Customer Bill: ${res.error || "Printer unavailable"}`,
+        order
+      });
+    }
   };
 
   // Derived POS Performance analytics for reporting tab

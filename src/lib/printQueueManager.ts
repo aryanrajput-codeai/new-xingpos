@@ -445,8 +445,11 @@ export class PrintQueueManager {
             };
 
             if (job.type === "Bill") {
-              PhysicalThermalPrinter.printPremiumHTML("bill", tempOrder, settings, printOptions);
-              success = true;
+              const billRes = await PhysicalThermalPrinter.printBill(tempOrder, settings, paperWidth as any, "silent");
+              success = billRes.success;
+              if (!billRes.success) {
+                errMsg = billRes.error || "Silent bill printing failed.";
+              }
             } else {
               // KOT or Add-On KOT
               const kotData = {
@@ -460,17 +463,17 @@ export class PrintQueueManager {
                 specialInstructions: order.items.map((i) => i.customization).filter(Boolean).join(", ") || undefined,
               };
 
-              PhysicalThermalPrinter.printPremiumHTML(
-                job.type === "Add-On KOT" ? "duplicate-copy" : "kot",
-                kotData,
-                settings,
-                {
-                  ...printOptions,
-                  customFooter: job.type === "Add-On KOT" ? "*** ADD-ON KOT ***" : "Kitchen Copy Only",
-                  showWatermark: job.type === "Add-On KOT" ? "add-on" : (job.isReprint ? "reprint" : "none"),
-                }
+              const kotSuccess = await PhysicalThermalPrinter.printKOT(
+                kotData as any,
+                paperWidth as any,
+                "silent",
+                "System",
+                settings
               );
-              success = true;
+              success = kotSuccess;
+              if (!kotSuccess) {
+                errMsg = "Silent KOT printing failed.";
+              }
             }
           } catch (printErr: any) {
             success = false;
